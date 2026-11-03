@@ -94,9 +94,7 @@ const createPropertyValidationSchema = z
 
             // Closing
             titleCompany: z.string().optional(),
-            closingDate: z.enum(CLOSING_DATE_OPTIONS, {
-                required_error: 'Closing preference is required',
-            }),
+            closingDate: z.string(),
 
             // Files — arrays of S3 URLs from upload middleware
             photos: z
