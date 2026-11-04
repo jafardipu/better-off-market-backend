@@ -151,7 +151,7 @@ const updatePropertyValidationSchema = z.object({
         propertyType: z.enum(PROPERTY_TYPES, {
             required_error: 'Property type is required',
         }).optional(),
-        useType: z.enum(USE_TYPE_OPTIONS).optional(),
+        useType: z.string().optional(),
         useTypeOther: z.string().optional(),
         ownership: z.enum(['own', 'assignable']).optional(),
         location: locationSchema.optional(),
