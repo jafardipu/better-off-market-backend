@@ -41,8 +41,6 @@ export const sendNotification = async (
         },
       },
     });
-
-    console.log("=====> sent notification")
     return response;
   } catch (error: any) {
     console.error('Error sending message:', error);
