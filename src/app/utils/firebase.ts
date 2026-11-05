@@ -38,7 +38,7 @@ export const sendNotification = async (
             badge: 1,
             sound: 'default',
           },
-        },
+      },
       },
     });
     return response;

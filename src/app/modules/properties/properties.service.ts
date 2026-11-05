@@ -315,6 +315,7 @@ const getPropertiesBySellerForDashboard = async (
 };
 
 const updateProperty = async (id: string, payload: Partial<IProperty>) => {
+
   const existing = await Property.findById(id);
   if (!existing) {
     throw new AppError(httpStatus.NOT_FOUND, 'Property not found');
@@ -324,6 +325,7 @@ const updateProperty = async (id: string, payload: Partial<IProperty>) => {
     new: true,
     runValidators: true,
   });
+
   return result;
 };
 
