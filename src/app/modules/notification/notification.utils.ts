@@ -24,14 +24,15 @@ export const sendNotificationMessage = async ({ message, description, userId, fc
         receiver: userId,
     });
 
-    // console.log("saved notification")
-
-    if (fcmToken) {
-        console.log("sent firebase notification")
-        await sendNotification([fcmToken], {
-            ...notificationPayload,
-            userId: userId,
-        });
+    const token = fcmToken?.trim();
+    if (!token) {
+        console.warn(`Firebase notification skipped: user ${userId} has no fcmToken`);
+        return;
     }
+
+    await sendNotification([token], {
+        ...notificationPayload,
+        userId: userId,
+    });
 
 };

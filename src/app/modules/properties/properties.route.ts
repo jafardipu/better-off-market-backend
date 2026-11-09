@@ -66,7 +66,7 @@ router.patch(
 
     router.delete(
         '/:id',
-        auth(USER_ROLE.user),
+        auth(USER_ROLE.user, USER_ROLE.admin),
         propertyController.deleteProperty,
     );
 

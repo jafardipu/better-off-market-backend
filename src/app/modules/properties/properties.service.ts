@@ -12,8 +12,10 @@ import { Property } from './properties.models';
 import { Types } from 'mongoose';
 import { FilterQuery, PipelineStage } from 'mongoose';
 import { notifyGetInTouchSubscribers, PropertySearchQuery, toArray } from './properties.utils';
+import { deleteRemovedPropertyFiles } from './properties.files';
 import { PropertyView } from '../PropertyView/PropertyView.model';
 import { User } from '../user/user.models';
+import { USER_ROLE } from '../user/user.constants';
 import { sendNotificationMessage } from '../notification/notification.utils';
 
 
@@ -314,7 +316,11 @@ const getPropertiesBySellerForDashboard = async (
   return { data, meta };
 };
 
-const updateProperty = async (id: string, payload: Partial<IProperty>) => {
+const updateProperty = async (
+  id: string,
+  payload: Partial<IProperty>,
+  removedFileUrls: string[] = [],
+) => {
 
   const existing = await Property.findById(id);
   if (!existing) {
@@ -326,14 +332,29 @@ const updateProperty = async (id: string, payload: Partial<IProperty>) => {
     runValidators: true,
   });
 
+  if (result && removedFileUrls.length) {
+    await deleteRemovedPropertyFiles(removedFileUrls);
+  }
+
   return result;
 };
 
-const deleteProperty = async (id: string) => {
+const deleteProperty = async (
+  id: string,
+  actor: { userId?: string; role?: string },
+) => {
   const existing = await Property.findById(id);
 
   if (!existing) {
     throw new AppError(httpStatus.NOT_FOUND, 'Property not found');
+  }
+
+  const isAdmin = actor.role === USER_ROLE.admin;
+  if (!isAdmin && existing.seller?.toString() !== actor.userId) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'You can only delete your own property',
+    );
   }
 
   const result = await Property.findByIdAndUpdate(
@@ -341,6 +362,25 @@ const deleteProperty = async (id: string) => {
     { isDeleted: true },
     { new: true },
   );
+
+  if (!result) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Property not found');
+  }
+
+  if (isAdmin) {
+    const seller = await User.GetUserById(result.seller.toString());
+    if (seller?._id) {
+      void sendNotificationMessage({
+        message: 'Deleted your listed property',
+        description: `Your listed property from ${result.streetAddress}, ${result.city}, ${result.state}, ${result.zipCode}, ${result.county} has been deleted by the admin.`,
+        userId: seller._id.toString(),
+        fcmToken: seller.fcmToken,
+        link: '/properties-list',
+      }).catch((error) => {
+        console.error('Failed to notify seller about deleted property:', error);
+      });
+    }
+  }
 
   return result;
 };

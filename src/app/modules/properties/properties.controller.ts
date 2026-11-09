@@ -129,9 +129,13 @@ const getPropertiesBySellerForDashboard = catchAsync(async (req: Request, res: R
 });
 
 const updateProperty = catchAsync(async (req: Request, res: Response) => {
+  const removedPropertyFileUrls = Array.isArray(res.locals.removedPropertyFileUrls)
+    ? res.locals.removedPropertyFileUrls.filter((url): url is string => typeof url === 'string')
+    : [];
   const result = await propertyService.updateProperty(
     req.params.id,
     req.body,
+    removedPropertyFileUrls,
   );
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -142,7 +146,10 @@ const updateProperty = catchAsync(async (req: Request, res: Response) => {
 });
 
 const deleteProperty = catchAsync(async (req: Request, res: Response) => {
-  const result = await propertyService.deleteProperty(req.params.id);
+  const result = await propertyService.deleteProperty(req.params.id, {
+    userId: req.user?.userId,
+    role: req.user?.role,
+  });
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,

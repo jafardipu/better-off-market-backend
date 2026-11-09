@@ -1,10 +1,23 @@
 
 import httpStatus from 'http-status';
+import { PipelineStage, Types } from 'mongoose';
 import { IFavorite } from './favorite.interface';
 import Favorite from './favorite.models';
 import AppError from '../../error/AppError';
-import QueryBuilder from '../../class/builder/QueryBuilder';
 import { Property } from '../properties/properties.models';
+import { STATUS } from '../properties/properties.constants';
+
+const SAVED_PROPERTY_STATUSES = [
+  STATUS.active,
+  STATUS.under_contact,
+  STATUS.sold,
+] as const;
+
+const toPositiveInt = (value: unknown, fallback: number) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.floor(parsed);
+};
 
 const createFavorite = async (payload: IFavorite) => {
   const result = await Favorite.create(payload);
@@ -22,20 +35,88 @@ const createFavorite = async (payload: IFavorite) => {
 };
 
 const getAllFavorite = async (query: Record<string, any>) => {
-  query["isDeleted"] = false;
-  const favoriteModel = new QueryBuilder(Favorite.find().populate('property'), query)
-    .search([])
-    .filter()
-    .paginate()
-    .sort()
-    .fields();
+  const userId = query.user;
+  if (!userId || !Types.ObjectId.isValid(String(userId))) {
+    throw new AppError(httpStatus.UNAUTHORIZED, 'User is not authenticated');
+  }
 
-  const data = await favoriteModel.modelQuery;
-  const meta = await favoriteModel.countTotal();
+  const rawStatus = Array.isArray(query.status) ? query.status[0] : query.status;
+  const status = typeof rawStatus === 'string' ? rawStatus.trim() : '';
+  if (
+    status &&
+    !SAVED_PROPERTY_STATUSES.includes(
+      status as (typeof SAVED_PROPERTY_STATUSES)[number],
+    )
+  ) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'status must be one of: Active, Under Contract, Sold',
+    );
+  }
+
+  const page = toPositiveInt(query.page, 1);
+  const limit = toPositiveInt(query.limit, 9);
+  const skip = (page - 1) * limit;
+
+  const statusMatch: PipelineStage[] = status
+    ? [{ $match: { 'propertyDoc.status': status } }]
+    : [];
+
+  const [result] = await Favorite.aggregate([
+    { $match: { user: new Types.ObjectId(String(userId)) } },
+    {
+      $lookup: {
+        from: Property.collection.collectionName,
+        localField: 'property',
+        foreignField: '_id',
+        as: 'propertyDoc',
+      },
+    },
+    { $unwind: { path: '$propertyDoc', preserveNullAndEmptyArrays: false } },
+    { $match: { 'propertyDoc.isDeleted': { $ne: true } } },
+    {
+      $facet: {
+        counts: [
+          { $group: { _id: '$propertyDoc.status', count: { $sum: 1 } } },
+        ],
+        data: [
+          ...statusMatch,
+          { $sort: { createdAt: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+          { $addFields: { property: '$propertyDoc' } },
+          { $project: { propertyDoc: 0 } },
+        ],
+        filteredTotal: [...statusMatch, { $count: 'count' }],
+      },
+    },
+  ] as PipelineStage[]);
+
+  const statusCounts = {
+    all: 0,
+    active: 0,
+    under_contract: 0,
+    sold: 0,
+  };
+
+  for (const row of result?.counts ?? []) {
+    statusCounts.all += row.count;
+    if (row._id === STATUS.active) statusCounts.active = row.count;
+    else if (row._id === STATUS.under_contact) statusCounts.under_contract = row.count;
+    else if (row._id === STATUS.sold) statusCounts.sold = row.count;
+  }
+
+  const total = result?.filteredTotal?.[0]?.count ?? 0;
 
   return {
-    data,
-    meta,
+    data: result?.data ?? [],
+    meta: {
+      page,
+      limit,
+      total,
+      totalPage: total === 0 ? 0 : Math.ceil(total / limit),
+    },
+    statusCounts,
   };
 };
 
