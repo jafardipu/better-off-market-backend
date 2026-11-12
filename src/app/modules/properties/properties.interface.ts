@@ -101,7 +101,7 @@ export interface IProperty {
     // open house
     openHouse?: IOpenHouse;
 
-
+    approvedDate?: Date;
     isDeleted: boolean;
 }
 

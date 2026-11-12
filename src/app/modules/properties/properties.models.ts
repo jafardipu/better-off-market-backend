@@ -185,6 +185,10 @@ const propertySchema: Schema<IProperty> = new Schema(
       required: false
     },
 
+    approvedDate: {
+      type: Date,
+      default: null,
+    },
     isDeleted: {
       type: Boolean,
       default: false,
