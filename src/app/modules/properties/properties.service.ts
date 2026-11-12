@@ -387,7 +387,6 @@ const deleteProperty = async (
 
 // ======================================= admin services =======================================
 const approveProperty = async (id: string) => {
-  console.log("Approved listing");
   const result = await Property.findByIdAndUpdate(id, { status: STATUS.active, approvedDate: new Date() }, { new: true });
   if (!result) {
     throw new AppError(httpStatus.NOT_FOUND, 'Property not found');
