@@ -43,7 +43,7 @@ const createPropertyValidationSchema = z
             city: z.string().min(1, 'City is required'),
             zipCode: z.string().min(5, 'Enter a valid ZIP code'),
             county: z.string().min(1, 'County is required'),
-            parcelIds: z.string().optional(),
+            parcelIds: z.string().nullish(),
             listingPrice: z.coerce
                 .number({ invalid_type_error: 'Enter a valid amount' })
                 .positive('Listing price is required'),
@@ -123,13 +123,6 @@ const createPropertyValidationSchema = z
         const body = data.body;
         const config = BASIC_INFO_CONFIG[body.propertyType];
 
-        if (config?.showParcelId && !body.parcelIds?.trim()) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ['body', 'parcelIds'],
-                message: 'Parcel ID(s) are required for this property type',
-            });
-        }
         if (config?.showBuyItNowPrice && !body.buyItNowPrice) {
             ctx.addIssue({
                 code: z.ZodIssueCode.custom,
@@ -160,7 +153,7 @@ const updatePropertyValidationSchema = z.object({
         city: z.string().optional(),
         zipCode: z.string().optional(),
         county: z.string().optional(),
-        parcelIds: z.string().optional(),
+        parcelIds: z.string().nullish(),
         listingPrice: z.coerce.number().positive().optional(),
         oldListingPrice: z.coerce.number().positive().optional(),
         buyItNowPrice: z.coerce.number().optional(),

@@ -5,6 +5,9 @@ import { Message } from '../../modules/message/message.model';
 import { serializeMessage } from '../utils/serializeMessage';
 import getChatList from './chatList.handlers';
 import { getSocketIdByUserId } from '../utils/onlineUsers';
+import { User } from '../../modules/user/user.models';
+import { sendActivityEmail } from '../../utils/activityEmail';
+import config from '../../config';
 
 interface IPayload {
     imageUrl?: string[]; // matches frontend's field name
@@ -61,6 +64,30 @@ const sendMessage = async (
 
         await getChatList(io, { userId: user.userId }, {}, () => { });
         await getChatList(io, { userId: payload.receiver }, {}, () => { });
+
+        if (payload.receiver && payload.receiver !== user.userId) {
+            const [sender, receiverUser] = await Promise.all([
+                User.findById(user.userId).select('name'),
+                User.findById(payload.receiver).select('name email'),
+            ]);
+            const preview = payload.text?.trim()
+                ? payload.text.trim().slice(0, 180)
+                : payload.imageUrl?.length
+                    ? 'Sent you an image'
+                    : 'Sent you a message';
+
+            sendActivityEmail({
+                to: receiverUser?.email,
+                userName: receiverUser?.name,
+                subject: 'You received a new message',
+                title: 'New Message',
+                body: `${sender?.name || 'Someone'} sent you a message.`,
+                detailLabel: 'Message',
+                detailValue: preview,
+                actionUrl: `${config.client_Url}/messages`,
+                actionLabel: 'Open Messages',
+            });
+        }
 
         callbackFn(callback, {
             success: true,

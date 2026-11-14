@@ -12,6 +12,8 @@ import mongoose from 'mongoose';
 import { sendNotificationMessage } from '../notification/notification.utils';
 import { propertyAddress } from '../properties/properties.utils';
 import { User } from '../user/user.models';
+import { sendActivityEmail } from '../../utils/activityEmail';
+import config from '../../config';
 
 // Buyer submits the first offer on a property
 const createOffer = async (
@@ -83,6 +85,24 @@ const createOffer = async (
 
   sendNotificationMessage(notificationPayload);
 
+  const offerAddress = propertyAddress(
+    property.streetAddress,
+    property.city,
+    property.state,
+    property.zipCode,
+    property.county,
+  );
+  sendActivityEmail({
+    to: seller?.email,
+    userName: seller?.name,
+    subject: 'You received an offer on your listing',
+    title: 'New Offer',
+    body: `${buyer?.name || 'A buyer'} submitted an offer on your listing. Review it and respond from your offers.`,
+    detailLabel: 'Property',
+    detailValue: offerAddress,
+    actionUrl: `${config.client_Url}/user/offers-received/${result._id}`,
+    actionLabel: 'Review Offer',
+  });
 
   const admin = await User.GetAdminUser();
 
@@ -173,6 +193,26 @@ const counterOffer = async (
   };
 
   sendNotificationMessage(notificationPayload);
+
+  const counterAddress = propertyAddress(
+    property.streetAddress,
+    property.city,
+    property.state,
+    property.zipCode,
+    property.county,
+  );
+  const recipient = actingAs === 'buyer' ? seller : buyer;
+  sendActivityEmail({
+    to: recipient?.email,
+    userName: recipient?.name,
+    subject: 'You received a counter offer',
+    title: 'Counter Offer',
+    body: `${actingAs === 'buyer' ? buyer?.name : seller?.name} sent a counter offer. Review the updated terms and respond.`,
+    detailLabel: 'Property',
+    detailValue: counterAddress,
+    actionUrl: `${config.client_Url}${actingAs === 'buyer' ? `/user/offers-received/${offerId}` : `/review-sent-offer?offer=${offerId}`}`,
+    actionLabel: 'Review Counter Offer',
+  });
 
   const admin = await User.GetAdminUser();
 

@@ -4,6 +4,7 @@ import { IUser } from './user.interface';
 import { User } from './user.models';
 import bcrypt from 'bcrypt';
 import config from '../../config';
+import { propertyAddress } from '../properties/properties.utils';
 
 export const checkUserExit = async (payload: IUser) => {
   const isExist = await User.isUserExistEmail(payload.email as string);
@@ -34,12 +35,21 @@ export const checkUserExit = async (payload: IUser) => {
 };
 
 export const buildPropertyLabel = (p: {
-  propertyType: string;
-  streetAddress: string;
-  city: string;
-  state: string;
+  propertyType?: string;
+  streetAddress?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  county?: string;
 }) => {
-  return `${p.propertyType} — ${p.streetAddress}, ${p.city}, ${p.state}`;
+  const address = propertyAddress(
+    p.streetAddress,
+    p.city,
+    p.state,
+    p.zipCode,
+    p.county,
+  );
+  return p.propertyType ? `${p.propertyType} — ${address}` : address;
 };
 
 export const getYearRange = (year?: string) => {

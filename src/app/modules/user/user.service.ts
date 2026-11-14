@@ -176,10 +176,11 @@ const getListingAnalytics = async (sellerId: string, year?: string) => {
   const viewsAgg: {
     _id: Types.ObjectId;
     propertyType: string;
+    streetAddress: string;
     city: string;
     state: string;
-    specifications: Record<string, unknown>;
-    streetAddress: string;
+    zipCode: string;
+    county: string;
     count: number;
   }[] = await Property.aggregate([
     { $match: activePropertyMatch },
@@ -201,10 +202,11 @@ const getListingAnalytics = async (sellerId: string, year?: string) => {
     {
       $project: {
         propertyType: 1,
+        streetAddress: 1,
         city: 1,
         state: 1,
-        specifications: 1,
-        streetAddress: 1,
+        zipCode: 1,
+        county: 1,
         count: { $size: '$viewDocs' },
       },
     },
@@ -214,10 +216,7 @@ const getListingAnalytics = async (sellerId: string, year?: string) => {
 
   const views = viewsAgg.map((v) => ({
     propertyId: v._id.toString(),
-    label: buildPropertyLabel({
-      ...v,
-      streetAddress: (v as any).streetAddress ?? '',
-    }),
+    label: buildPropertyLabel(v),
     count: v.count,
   }));
   const maxViewsCount = views[0]?.count || 0;
@@ -226,9 +225,11 @@ const getListingAnalytics = async (sellerId: string, year?: string) => {
   const savesAgg: {
     _id: Types.ObjectId;
     propertyType: string;
+    streetAddress: string;
     city: string;
     state: string;
-    specifications: Record<string, unknown>;
+    zipCode: string;
+    county: string;
     count: number;
   }[] = await Property.aggregate([
     { $match: activePropertyMatch },
@@ -251,9 +252,11 @@ const getListingAnalytics = async (sellerId: string, year?: string) => {
     {
       $project: {
         propertyType: 1,
+        streetAddress: 1,
         city: 1,
         state: 1,
-        specifications: 1,
+        zipCode: 1,
+        county: 1,
         count: { $size: '$saveDocs' },
       },
     },
@@ -263,10 +266,7 @@ const getListingAnalytics = async (sellerId: string, year?: string) => {
 
   const saves = savesAgg.map((s) => ({
     propertyId: s._id.toString(),
-    label: buildPropertyLabel({
-      ...s,
-      streetAddress: (s as any).streetAddress ?? '',
-    }),
+    label: buildPropertyLabel(s),
     count: s.count,
   }));
   const maxSavesCount = saves[0]?.count || 0;

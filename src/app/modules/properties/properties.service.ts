@@ -11,12 +11,14 @@ import {
 import { Property } from './properties.models';
 import { Types } from 'mongoose';
 import { FilterQuery, PipelineStage } from 'mongoose';
-import { notifyGetInTouchSubscribers, PropertySearchQuery, toArray } from './properties.utils';
+import { notifyGetInTouchSubscribers, propertyAddress, PropertySearchQuery, toArray } from './properties.utils';
 import { deleteRemovedPropertyFiles } from './properties.files';
 import { PropertyView } from '../PropertyView/PropertyView.model';
 import { User } from '../user/user.models';
 import { USER_ROLE } from '../user/user.constants';
 import { sendNotificationMessage } from '../notification/notification.utils';
+import { sendActivityEmail } from '../../utils/activityEmail';
+import config from '../../config';
 
 
 
@@ -403,6 +405,25 @@ const approveProperty = async (id: string) => {
   };
 
   sendNotificationMessage(notificationPayload);
+
+  const address = propertyAddress(
+    result.streetAddress,
+    result.city,
+    result.state,
+    result.zipCode,
+    result.county,
+  );
+  sendActivityEmail({
+    to: seller?.email,
+    userName: seller?.name,
+    subject: 'Your listing is now Active',
+    title: 'Listing Approved',
+    body: 'Your listing has been approved and is now Active on BetterOffMarket.',
+    detailLabel: 'Property',
+    detailValue: address,
+    actionUrl: `${config.client_Url}/properties-list/${result._id}`,
+    actionLabel: 'View Listing',
+  });
 
   void notifyGetInTouchSubscribers(result, seller?.name ?? 'Seller').catch((error) => {
     console.error('Failed to notify GetInTouch subscribers about approved property:', error);

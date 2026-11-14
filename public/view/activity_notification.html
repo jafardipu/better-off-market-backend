@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{title}}</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background: #f9feff;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+          'Helvetica Neue', Arial, sans-serif;
+      }
+      table {
+        border-collapse: collapse;
+      }
+      .container {
+        width: 100%;
+        max-width: 600px;
+        margin: 0 auto;
+      }
+      .card {
+        background: #fff;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      }
+      .header {
+        background: #00214c;
+        padding: 20px;
+        text-align: center;
+        color: #fff;
+        font-size: 20px;
+        font-weight: 700;
+      }
+      .content {
+        padding: 24px;
+        color: #334236;
+        font-size: 16px;
+        line-height: 1.5;
+      }
+      .field-table {
+        width: 100%;
+        margin: 20px 0;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #ebf4ff;
+      }
+      .field-table td {
+        padding: 12px 16px;
+        font-size: 14px;
+        border-bottom: 1px solid #e2eef5;
+        vertical-align: top;
+      }
+      .field-table tr:last-child td {
+        border-bottom: none;
+      }
+      .field-label {
+        color: #00214c;
+        font-weight: 700;
+        width: 140px;
+        white-space: nowrap;
+      }
+      .field-value {
+        color: #334236;
+      }
+      .btn {
+        display: inline-block;
+        text-decoration: none;
+        padding: 12px 20px;
+        border-radius: 8px;
+        background: #41839e;
+        color: #fff !important;
+        font-weight: 600;
+        margin-top: 16px;
+        width: 90%;
+        margin: auto;
+        text-align: center;
+      }
+      .footer {
+        font-size: 12px;
+        color: #8b8b8b;
+        text-align: center;
+        padding: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+      <tr>
+        <td align="center" style="padding: 20px">
+          <table class="container" role="presentation">
+            <tr>
+              <td>
+                <div class="card">
+                  <div class="header">{{title}}</div>
+                  <div class="content">
+                    <p>Hello {{userName}},</p>
+                    <p>{{body}}</p>
+
+                    <table class="field-table" role="presentation">
+                      <tr>
+                        <td class="field-label">{{detailLabel}}</td>
+                        <td class="field-value">{{detailValue}}</td>
+                      </tr>
+                    </table>
+
+                    <a href="{{actionUrl}}" target="_blank" class="btn">{{actionLabel}}</a>
+                  </div>
+                  <div class="footer">
+                    &copy; {{year}} BetterOffMarket. All rights reserved.
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
