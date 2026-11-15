@@ -40,6 +40,25 @@ const createProperty = async (payload: IProperty) => {
 
   sendNotificationMessage(notificationPayload);
 
+  const address = propertyAddress(
+    payload.streetAddress,
+    payload.city,
+    payload.state,
+    payload.zipCode,
+    payload.county,
+  );
+  sendActivityEmail({
+    to: admin?.email,
+    userName: admin?.name,
+    subject: 'New listing submitted for review',
+    title: 'Listing Ready for Review',
+    body: 'A seller submitted a new listing. Review it and approve or reject it.',
+    detailLabel: 'Property',
+    detailValue: address,
+    actionUrl: `${config.client_Url}/listings/${result._id}`,
+    actionLabel: 'Review Listing',
+  });
+
   return result;
 };
 
