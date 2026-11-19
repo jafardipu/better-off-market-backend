@@ -18,8 +18,11 @@ const message_model_1 = require("../../modules/message/message.model");
 const serializeMessage_1 = require("../utils/serializeMessage");
 const chatList_handlers_1 = __importDefault(require("./chatList.handlers"));
 const onlineUsers_1 = require("../utils/onlineUsers");
+const user_models_1 = require("../../modules/user/user.models");
+const activityEmail_1 = require("../../utils/activityEmail");
+const config_1 = __importDefault(require("../../config"));
 const sendMessage = (io, payload, user, callback) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
+    var _a, _b, _c, _d;
     try {
         let chatId = payload.chatId;
         if (!chatId) {
@@ -55,6 +58,28 @@ const sendMessage = (io, payload, user, callback) => __awaiter(void 0, void 0, v
             io.to(receiverSocketId).emit(eventName, serialized);
         yield (0, chatList_handlers_1.default)(io, { userId: user.userId }, {}, () => { });
         yield (0, chatList_handlers_1.default)(io, { userId: payload.receiver }, {}, () => { });
+        if (payload.receiver && payload.receiver !== user.userId) {
+            const [sender, receiverUser] = yield Promise.all([
+                user_models_1.User.findById(user.userId).select('name'),
+                user_models_1.User.findById(payload.receiver).select('name email'),
+            ]);
+            const preview = ((_c = payload.text) === null || _c === void 0 ? void 0 : _c.trim())
+                ? payload.text.trim().slice(0, 180)
+                : ((_d = payload.imageUrl) === null || _d === void 0 ? void 0 : _d.length)
+                    ? 'Sent you an image'
+                    : 'Sent you a message';
+            (0, activityEmail_1.sendActivityEmail)({
+                to: receiverUser === null || receiverUser === void 0 ? void 0 : receiverUser.email,
+                userName: receiverUser === null || receiverUser === void 0 ? void 0 : receiverUser.name,
+                subject: 'You received a new message',
+                title: 'New Message',
+                body: `${(sender === null || sender === void 0 ? void 0 : sender.name) || 'Someone'} sent you a message.`,
+                detailLabel: 'Message',
+                detailValue: preview,
+                actionUrl: `${config_1.default.client_Url}/messages`,
+                actionLabel: 'Open Messages',
+            });
+        }
         (0, callbackFn_1.default)(callback, {
             success: true,
             message: 'Message sent successfully',

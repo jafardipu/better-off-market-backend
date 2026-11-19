@@ -177,24 +177,22 @@ const getListingAnalytics = (sellerId, year) => __awaiter(void 0, void 0, void 0
         {
             $project: {
                 propertyType: 1,
+                streetAddress: 1,
                 city: 1,
                 state: 1,
-                specifications: 1,
-                streetAddress: 1,
+                zipCode: 1,
+                county: 1,
                 count: { $size: '$viewDocs' },
             },
         },
         { $sort: { count: -1 } },
         { $limit: 10 },
     ]);
-    const views = viewsAgg.map((v) => {
-        var _a;
-        return ({
-            propertyId: v._id.toString(),
-            label: (0, user_utils_1.buildPropertyLabel)(Object.assign(Object.assign({}, v), { streetAddress: (_a = v.streetAddress) !== null && _a !== void 0 ? _a : '' })),
-            count: v.count,
-        });
-    });
+    const views = viewsAgg.map((v) => ({
+        propertyId: v._id.toString(),
+        label: (0, user_utils_1.buildPropertyLabel)(v),
+        count: v.count,
+    }));
     const maxViewsCount = ((_a = views[0]) === null || _a === void 0 ? void 0 : _a.count) || 0;
     // Saves — same pattern: all active/under-contract listings, 0-save included, top 10 by count
     const savesAgg = yield properties_models_1.Property.aggregate([
@@ -218,23 +216,22 @@ const getListingAnalytics = (sellerId, year) => __awaiter(void 0, void 0, void 0
         {
             $project: {
                 propertyType: 1,
+                streetAddress: 1,
                 city: 1,
                 state: 1,
-                specifications: 1,
+                zipCode: 1,
+                county: 1,
                 count: { $size: '$saveDocs' },
             },
         },
         { $sort: { count: -1 } },
         { $limit: 10 },
     ]);
-    const saves = savesAgg.map((s) => {
-        var _a;
-        return ({
-            propertyId: s._id.toString(),
-            label: (0, user_utils_1.buildPropertyLabel)(Object.assign(Object.assign({}, s), { streetAddress: (_a = s.streetAddress) !== null && _a !== void 0 ? _a : '' })),
-            count: s.count,
-        });
-    });
+    const saves = savesAgg.map((s) => ({
+        propertyId: s._id.toString(),
+        label: (0, user_utils_1.buildPropertyLabel)(s),
+        count: s.count,
+    }));
     const maxSavesCount = ((_b = saves[0]) === null || _b === void 0 ? void 0 : _b.count) || 0;
     return {
         totalViewsThisWeek,

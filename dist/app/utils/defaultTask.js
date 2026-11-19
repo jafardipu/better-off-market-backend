@@ -42,7 +42,12 @@ function defaultTask() {
                 privacyPolicy: '',
                 supports: '',
                 faq: '',
+                banner: [],
             });
+            console.log('Default content created');
+        }
+        else {
+            console.log('Content already exists, seed skipped');
         }
     });
 }

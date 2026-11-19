@@ -18,6 +18,7 @@ const AppError_1 = __importDefault(require("../../error/AppError"));
 const user_models_1 = require("./user.models");
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const config_1 = __importDefault(require("../../config"));
+const properties_utils_1 = require("../properties/properties.utils");
 const checkUserExit = (payload) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
     const isExist = yield user_models_1.User.isUserExistEmail(payload.email);
@@ -41,7 +42,8 @@ const checkUserExit = (payload) => __awaiter(void 0, void 0, void 0, function* (
 });
 exports.checkUserExit = checkUserExit;
 const buildPropertyLabel = (p) => {
-    return `${p.propertyType} — ${p.streetAddress}, ${p.city}, ${p.state}`;
+    const address = (0, properties_utils_1.propertyAddress)(p.streetAddress, p.city, p.state, p.zipCode, p.county);
+    return p.propertyType ? `${p.propertyType} — ${address}` : address;
 };
 exports.buildPropertyLabel = buildPropertyLabel;
 const getYearRange = (year) => {

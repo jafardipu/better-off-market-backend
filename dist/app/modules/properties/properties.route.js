@@ -55,7 +55,7 @@ router.get('/:id', properties_controller_1.propertyController.getPropertyById);
 router.patch('/:id', (0, auth_1.default)(user_constants_1.USER_ROLE.user), propertyUploadFields, (0, parseData_1.default)(), properties_upload_middleware_1.default, (0, validateRequest_1.default)(properties_validation_1.propertyValidation.updatePropertyValidationSchema), properties_controller_1.propertyController.updateProperty);
 router.patch('/increase-views/:id', properties_controller_1.propertyController.increaseViewCount),
     router.patch('/increase-rsvp/:id', properties_controller_1.propertyController.increaseRSVPCount),
-    router.delete('/:id', (0, auth_1.default)(user_constants_1.USER_ROLE.user), properties_controller_1.propertyController.deleteProperty);
+    router.delete('/:id', (0, auth_1.default)(user_constants_1.USER_ROLE.user, user_constants_1.USER_ROLE.admin), properties_controller_1.propertyController.deleteProperty);
 // ============================================== admin routes ================================================
 router.patch('/approve/:id', (0, auth_1.default)(user_constants_1.USER_ROLE.admin), properties_controller_1.propertyController.approveProperty);
 router.patch('/reject/:id', (0, auth_1.default)(user_constants_1.USER_ROLE.admin), properties_controller_1.propertyController.rejectProperty);

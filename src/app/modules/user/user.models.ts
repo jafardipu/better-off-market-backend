@@ -207,7 +207,11 @@ userSchema.statics.isPasswordMatched = async function (
 };
 
 userSchema.statics.GetAdminUser = async function () {
-  return await User.findOne({ role: USER_ROLE.admin });
+  return await User.findOne({
+    role: {
+      $in: [USER_ROLE.admin, USER_ROLE.super_admin, USER_ROLE.sub_admin],
+    },
+  });
 };
 
 userSchema.statics.GetUserById = async function (id: string) {

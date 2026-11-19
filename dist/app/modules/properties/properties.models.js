@@ -163,6 +163,10 @@ const propertySchema = new mongoose_1.Schema({
         },
         required: false
     },
+    approvedDate: {
+        type: Date,
+        default: null,
+    },
     isDeleted: {
         type: Boolean,
         default: false,

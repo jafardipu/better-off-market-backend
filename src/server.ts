@@ -5,6 +5,7 @@ import colors from 'colors';
 import mongoose from 'mongoose';
 import config from './app/config';
 import initializeSocket from './app/socket';
+import { defaultTask } from './app/utils/defaultTask';
 import dns from 'dns';
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 
@@ -46,6 +47,7 @@ const shutdown = (reason: string) => (err?: unknown) => {
 };
 
 connectDB()
+  .then(() => defaultTask())
   .then(startSocket)
   .then(startHttpServer)
   .then((s) => {

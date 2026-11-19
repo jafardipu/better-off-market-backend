@@ -199,7 +199,11 @@ userSchema.statics.isPasswordMatched = function (plainTextPassword, hashedPasswo
 };
 userSchema.statics.GetAdminUser = function () {
     return __awaiter(this, void 0, void 0, function* () {
-        return yield exports.User.findOne({ role: user_constants_1.USER_ROLE.admin });
+        return yield exports.User.findOne({
+            role: {
+                $in: [user_constants_1.USER_ROLE.admin, user_constants_1.USER_ROLE.super_admin, user_constants_1.USER_ROLE.sub_admin],
+            },
+        });
     });
 };
 userSchema.statics.GetUserById = function (id) {

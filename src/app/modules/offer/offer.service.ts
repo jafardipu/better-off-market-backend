@@ -31,7 +31,15 @@ const createOffer = async (
     throw new AppError(httpStatus.BAD_REQUEST, 'Property is not available for offer');
   }
 
-  if (property.seller._id.toString() === buyerId) {
+  const seller = property.seller as any;
+  if (!seller?._id) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'This listing has no seller, so an offer cannot be submitted',
+    );
+  }
+
+  if (seller._id.toString() === buyerId) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
       'You cannot make an offer on your own property',
@@ -53,7 +61,7 @@ const createOffer = async (
   const result = await Offer.create({
     property: propertyId,
     buyer: buyerId,
-    seller: property.seller._id,
+    seller: seller._id,
     status: OFFER_STATUS.pending,
     currentRound: 1,
     lastActionBy: 'buyer',
@@ -72,7 +80,6 @@ const createOffer = async (
 
   await Property.findByIdAndUpdate(propertyId, { $inc: { totalOffers: 1 } });
 
-  const seller = property.seller as any;
   const buyer = await User.findById(buyerId).select('-password');
 
   const notificationPayload = {
@@ -106,15 +113,17 @@ const createOffer = async (
 
   const admin = await User.GetAdminUser();
 
-  const adminNotificationPayload = {
-    message: `A Offer submitted for  property ${propertyAddress(property.streetAddress, property.city, property.state, property.zipCode, property.county)} by ${buyer?.name}`,
-    description: `${buyer?.name} has  submitted an offer for ${seller?.name} property ${propertyAddress(property.streetAddress, property.city, property.state, property.zipCode, property.county)}.`,
-    userId: admin._id?.toString()!,
-    fcmToken: admin?.fcmToken!,
-    link: `/orders/${result._id}`,
-  };
+  if (admin?._id) {
+    const adminNotificationPayload = {
+      message: `A Offer submitted for  property ${propertyAddress(property.streetAddress, property.city, property.state, property.zipCode, property.county)} by ${buyer?.name}`,
+      description: `${buyer?.name} has  submitted an offer for ${seller?.name} property ${propertyAddress(property.streetAddress, property.city, property.state, property.zipCode, property.county)}.`,
+      userId: admin._id.toString(),
+      fcmToken: admin?.fcmToken,
+      link: `/orders/${result._id}`,
+    };
 
-  sendNotificationMessage(adminNotificationPayload);
+    sendNotificationMessage(adminNotificationPayload);
+  }
 
   return result;
 };

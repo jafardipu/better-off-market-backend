@@ -21,10 +21,11 @@ const sendNotificationMessage = (_a) => __awaiter(void 0, [_a], void 0, function
         notificationPayload.link = link;
     }
     yield notification_model_1.Notification.create(Object.assign(Object.assign({}, notificationPayload), { receiver: userId }));
-    // console.log("saved notification")
-    if (fcmToken) {
-        console.log("sent firebase notification");
-        yield (0, firebase_1.sendNotification)([fcmToken], Object.assign(Object.assign({}, notificationPayload), { userId: userId }));
+    const token = fcmToken === null || fcmToken === void 0 ? void 0 : fcmToken.trim();
+    if (!token) {
+        console.warn(`Firebase notification skipped: user ${userId} has no fcmToken`);
+        return;
     }
+    yield (0, firebase_1.sendNotification)([token], Object.assign(Object.assign({}, notificationPayload), { userId: userId }));
 });
 exports.sendNotificationMessage = sendNotificationMessage;

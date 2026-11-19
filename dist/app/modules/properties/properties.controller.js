@@ -123,7 +123,10 @@ const getPropertiesBySellerForDashboard = (0, catchAsync_1.default)((req, res) =
     });
 }));
 const updateProperty = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const result = yield properties_service_1.propertyService.updateProperty(req.params.id, req.body);
+    const removedPropertyFileUrls = Array.isArray(res.locals.removedPropertyFileUrls)
+        ? res.locals.removedPropertyFileUrls.filter((url) => typeof url === 'string')
+        : [];
+    const result = yield properties_service_1.propertyService.updateProperty(req.params.id, req.body, removedPropertyFileUrls);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
@@ -132,7 +135,11 @@ const updateProperty = (0, catchAsync_1.default)((req, res) => __awaiter(void 0,
     });
 }));
 const deleteProperty = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const result = yield properties_service_1.propertyService.deleteProperty(req.params.id);
+    var _a, _b;
+    const result = yield properties_service_1.propertyService.deleteProperty(req.params.id, {
+        userId: (_a = req.user) === null || _a === void 0 ? void 0 : _a.userId,
+        role: (_b = req.user) === null || _b === void 0 ? void 0 : _b.role,
+    });
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,

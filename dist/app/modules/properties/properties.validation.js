@@ -29,7 +29,7 @@ const createPropertyValidationSchema = zod_1.z
         city: zod_1.z.string().min(1, 'City is required'),
         zipCode: zod_1.z.string().min(5, 'Enter a valid ZIP code'),
         county: zod_1.z.string().min(1, 'County is required'),
-        parcelIds: zod_1.z.string().optional(),
+        parcelIds: zod_1.z.string().nullish(),
         listingPrice: zod_1.z.coerce
             .number({ invalid_type_error: 'Enter a valid amount' })
             .positive('Listing price is required'),
@@ -74,9 +74,7 @@ const createPropertyValidationSchema = zod_1.z
         hoaIncludes: zod_1.z.string().optional(),
         // Closing
         titleCompany: zod_1.z.string().optional(),
-        closingDate: zod_1.z.enum(properties_constants_1.CLOSING_DATE_OPTIONS, {
-            required_error: 'Closing preference is required',
-        }),
+        closingDate: zod_1.z.string(),
         // Files — arrays of S3 URLs from upload middleware
         photos: zod_1.z
             .array(zod_1.z.string())
@@ -97,16 +95,8 @@ const createPropertyValidationSchema = zod_1.z
     }),
 })
     .superRefine((data, ctx) => {
-    var _a;
     const body = data.body;
     const config = properties_constants_1.BASIC_INFO_CONFIG[body.propertyType];
-    if ((config === null || config === void 0 ? void 0 : config.showParcelId) && !((_a = body.parcelIds) === null || _a === void 0 ? void 0 : _a.trim())) {
-        ctx.addIssue({
-            code: zod_1.z.ZodIssueCode.custom,
-            path: ['body', 'parcelIds'],
-            message: 'Parcel ID(s) are required for this property type',
-        });
-    }
     if ((config === null || config === void 0 ? void 0 : config.showBuyItNowPrice) && !body.buyItNowPrice) {
         ctx.addIssue({
             code: zod_1.z.ZodIssueCode.custom,
@@ -127,7 +117,7 @@ const updatePropertyValidationSchema = zod_1.z.object({
         propertyType: zod_1.z.enum(properties_constants_1.PROPERTY_TYPES, {
             required_error: 'Property type is required',
         }).optional(),
-        useType: zod_1.z.enum(properties_constants_1.USE_TYPE_OPTIONS).optional(),
+        useType: zod_1.z.string().optional(),
         useTypeOther: zod_1.z.string().optional(),
         ownership: zod_1.z.enum(['own', 'assignable']).optional(),
         location: locationSchema.optional(),
@@ -136,7 +126,7 @@ const updatePropertyValidationSchema = zod_1.z.object({
         city: zod_1.z.string().optional(),
         zipCode: zod_1.z.string().optional(),
         county: zod_1.z.string().optional(),
-        parcelIds: zod_1.z.string().optional(),
+        parcelIds: zod_1.z.string().nullish(),
         listingPrice: zod_1.z.coerce.number().positive().optional(),
         oldListingPrice: zod_1.z.coerce.number().positive().optional(),
         buyItNowPrice: zod_1.z.coerce.number().optional(),

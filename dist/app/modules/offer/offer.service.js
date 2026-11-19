@@ -26,9 +26,10 @@ const mongoose_1 = __importDefault(require("mongoose"));
 const notification_utils_1 = require("../notification/notification.utils");
 const properties_utils_1 = require("../properties/properties.utils");
 const user_models_1 = require("../user/user.models");
+const activityEmail_1 = require("../../utils/activityEmail");
+const config_1 = __importDefault(require("../../config"));
 // Buyer submits the first offer on a property
 const createOffer = (buyerId, propertyId, terms, supportingDocuments) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
     const property = yield properties_models_1.Property.findById(propertyId).populate('seller');
     if (!property) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Property not found');
@@ -36,7 +37,11 @@ const createOffer = (buyerId, propertyId, terms, supportingDocuments) => __await
     if (property.status === properties_constants_1.STATUS.rejected || property.status === properties_constants_1.STATUS.sold || property.status === properties_constants_1.STATUS.pending) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Property is not available for offer');
     }
-    if (property.seller._id.toString() === buyerId) {
+    const seller = property.seller;
+    if (!(seller === null || seller === void 0 ? void 0 : seller._id)) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'This listing has no seller, so an offer cannot be submitted');
+    }
+    if (seller._id.toString() === buyerId) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'You cannot make an offer on your own property');
     }
     const existing = yield offer_models_1.Offer.findOne({
@@ -50,7 +55,7 @@ const createOffer = (buyerId, propertyId, terms, supportingDocuments) => __await
     const result = yield offer_models_1.Offer.create({
         property: propertyId,
         buyer: buyerId,
-        seller: property.seller._id,
+        seller: seller._id,
         status: offer_constants_1.OFFER_STATUS.pending,
         currentRound: 1,
         lastActionBy: 'buyer',
@@ -61,7 +66,6 @@ const createOffer = (buyerId, propertyId, terms, supportingDocuments) => __await
         ],
     });
     yield properties_models_1.Property.findByIdAndUpdate(propertyId, { $inc: { totalOffers: 1 } });
-    const seller = property.seller;
     const buyer = yield user_models_1.User.findById(buyerId).select('-password');
     const notificationPayload = {
         message: `A Offer received from ${buyer === null || buyer === void 0 ? void 0 : buyer.name} for your property `,
@@ -71,15 +75,29 @@ const createOffer = (buyerId, propertyId, terms, supportingDocuments) => __await
         link: `/user/offers-received/${result._id}`,
     };
     (0, notification_utils_1.sendNotificationMessage)(notificationPayload);
+    const offerAddress = (0, properties_utils_1.propertyAddress)(property.streetAddress, property.city, property.state, property.zipCode, property.county);
+    (0, activityEmail_1.sendActivityEmail)({
+        to: seller === null || seller === void 0 ? void 0 : seller.email,
+        userName: seller === null || seller === void 0 ? void 0 : seller.name,
+        subject: 'You received an offer on your listing',
+        title: 'New Offer',
+        body: `${(buyer === null || buyer === void 0 ? void 0 : buyer.name) || 'A buyer'} submitted an offer on your listing. Review it and respond from your offers.`,
+        detailLabel: 'Property',
+        detailValue: offerAddress,
+        actionUrl: `${config_1.default.client_Url}/user/offers-received/${result._id}`,
+        actionLabel: 'Review Offer',
+    });
     const admin = yield user_models_1.User.GetAdminUser();
-    const adminNotificationPayload = {
-        message: `A Offer submitted for  property ${(0, properties_utils_1.propertyAddress)(property.streetAddress, property.city, property.state, property.zipCode, property.county)} by ${buyer === null || buyer === void 0 ? void 0 : buyer.name}`,
-        description: `${buyer === null || buyer === void 0 ? void 0 : buyer.name} has  submitted an offer for ${seller === null || seller === void 0 ? void 0 : seller.name} property ${(0, properties_utils_1.propertyAddress)(property.streetAddress, property.city, property.state, property.zipCode, property.county)}.`,
-        userId: (_a = admin._id) === null || _a === void 0 ? void 0 : _a.toString(),
-        fcmToken: admin === null || admin === void 0 ? void 0 : admin.fcmToken,
-        link: `/orders/${result._id}`,
-    };
-    (0, notification_utils_1.sendNotificationMessage)(adminNotificationPayload);
+    if (admin === null || admin === void 0 ? void 0 : admin._id) {
+        const adminNotificationPayload = {
+            message: `A Offer submitted for  property ${(0, properties_utils_1.propertyAddress)(property.streetAddress, property.city, property.state, property.zipCode, property.county)} by ${buyer === null || buyer === void 0 ? void 0 : buyer.name}`,
+            description: `${buyer === null || buyer === void 0 ? void 0 : buyer.name} has  submitted an offer for ${seller === null || seller === void 0 ? void 0 : seller.name} property ${(0, properties_utils_1.propertyAddress)(property.streetAddress, property.city, property.state, property.zipCode, property.county)}.`,
+            userId: admin._id.toString(),
+            fcmToken: admin === null || admin === void 0 ? void 0 : admin.fcmToken,
+            link: `/orders/${result._id}`,
+        };
+        (0, notification_utils_1.sendNotificationMessage)(adminNotificationPayload);
+    }
     return result;
 });
 // Either party (whoever did NOT act last) submits a counter
@@ -123,6 +141,19 @@ const counterOffer = (offerId, userId, terms) => __awaiter(void 0, void 0, void 
         link: actingAs === 'buyer' ? `/user/offers-received/${offerId}` : `/review-sent-offer?offer=${offerId}`,
     };
     (0, notification_utils_1.sendNotificationMessage)(notificationPayload);
+    const counterAddress = (0, properties_utils_1.propertyAddress)(property.streetAddress, property.city, property.state, property.zipCode, property.county);
+    const recipient = actingAs === 'buyer' ? seller : buyer;
+    (0, activityEmail_1.sendActivityEmail)({
+        to: recipient === null || recipient === void 0 ? void 0 : recipient.email,
+        userName: recipient === null || recipient === void 0 ? void 0 : recipient.name,
+        subject: 'You received a counter offer',
+        title: 'Counter Offer',
+        body: `${actingAs === 'buyer' ? buyer === null || buyer === void 0 ? void 0 : buyer.name : seller === null || seller === void 0 ? void 0 : seller.name} sent a counter offer. Review the updated terms and respond.`,
+        detailLabel: 'Property',
+        detailValue: counterAddress,
+        actionUrl: `${config_1.default.client_Url}${actingAs === 'buyer' ? `/user/offers-received/${offerId}` : `/review-sent-offer?offer=${offerId}`}`,
+        actionLabel: 'Review Counter Offer',
+    });
     const admin = yield user_models_1.User.GetAdminUser();
     const adminNotificationPayload = {
         message: `A new counter offer has been submitted.`,

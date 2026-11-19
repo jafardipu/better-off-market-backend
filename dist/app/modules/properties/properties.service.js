@@ -20,9 +20,13 @@ const properties_constants_1 = require("./properties.constants");
 const properties_models_1 = require("./properties.models");
 const mongoose_1 = require("mongoose");
 const properties_utils_1 = require("./properties.utils");
+const properties_files_1 = require("./properties.files");
 const PropertyView_model_1 = require("../PropertyView/PropertyView.model");
 const user_models_1 = require("../user/user.models");
+const user_constants_1 = require("../user/user.constants");
 const notification_utils_1 = require("../notification/notification.utils");
+const activityEmail_1 = require("../../utils/activityEmail");
+const config_1 = __importDefault(require("../../config"));
 const createProperty = (payload) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     const result = yield properties_models_1.Property.create(payload);
@@ -38,6 +42,18 @@ const createProperty = (payload) => __awaiter(void 0, void 0, void 0, function* 
         link: `/listings/${result._id}`,
     };
     (0, notification_utils_1.sendNotificationMessage)(notificationPayload);
+    const address = (0, properties_utils_1.propertyAddress)(payload.streetAddress, payload.city, payload.state, payload.zipCode, payload.county);
+    (0, activityEmail_1.sendActivityEmail)({
+        to: admin === null || admin === void 0 ? void 0 : admin.email,
+        userName: admin === null || admin === void 0 ? void 0 : admin.name,
+        subject: 'New listing submitted for review',
+        title: 'Listing Ready for Review',
+        body: 'A seller submitted a new listing. Review it and approve or reject it.',
+        detailLabel: 'Property',
+        detailValue: address,
+        actionUrl: `${config_1.default.client_Url}/listings/${result._id}`,
+        actionLabel: 'Review Listing',
+    });
     return result;
 });
 const getAllProperties = (query) => __awaiter(void 0, void 0, void 0, function* () {
@@ -82,7 +98,7 @@ const getPropertyTypeCounts = () => __awaiter(void 0, void 0, void 0, function* 
         {
             $match: {
                 isDeleted: false,
-                status: { $in: [properties_constants_1.STATUS.pending, properties_constants_1.STATUS.under_contact] },
+                status: { $in: [properties_constants_1.STATUS.active, properties_constants_1.STATUS.under_contact] },
             },
         },
         { $group: { _id: '$propertyType', count: { $sum: 1 } } },
@@ -250,7 +266,7 @@ const getPropertiesBySellerForDashboard = (sellerId, query) => __awaiter(void 0,
     const meta = yield propertyQuery.countTotal();
     return { data, meta };
 });
-const updateProperty = (id, payload) => __awaiter(void 0, void 0, void 0, function* () {
+const updateProperty = (id_1, payload_1, ...args_1) => __awaiter(void 0, [id_1, payload_1, ...args_1], void 0, function* (id, payload, removedFileUrls = []) {
     const existing = yield properties_models_1.Property.findById(id);
     if (!existing) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Property not found');
@@ -259,20 +275,45 @@ const updateProperty = (id, payload) => __awaiter(void 0, void 0, void 0, functi
         new: true,
         runValidators: true,
     });
+    if (result && removedFileUrls.length) {
+        yield (0, properties_files_1.deleteRemovedPropertyFiles)(removedFileUrls);
+    }
     return result;
 });
-const deleteProperty = (id) => __awaiter(void 0, void 0, void 0, function* () {
+const deleteProperty = (id, actor) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     const existing = yield properties_models_1.Property.findById(id);
     if (!existing) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Property not found');
     }
+    const isAdmin = actor.role === user_constants_1.USER_ROLE.admin;
+    if (!isAdmin && ((_a = existing.seller) === null || _a === void 0 ? void 0 : _a.toString()) !== actor.userId) {
+        throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'You can only delete your own property');
+    }
     const result = yield properties_models_1.Property.findByIdAndUpdate(id, { isDeleted: true }, { new: true });
+    if (!result) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Property not found');
+    }
+    if (isAdmin) {
+        const seller = yield user_models_1.User.GetUserById(result.seller.toString());
+        if (seller === null || seller === void 0 ? void 0 : seller._id) {
+            void (0, notification_utils_1.sendNotificationMessage)({
+                message: 'Deleted your listed property',
+                description: `Your listed property from ${result.streetAddress}, ${result.city}, ${result.state}, ${result.zipCode}, ${result.county} has been deleted by the admin.`,
+                userId: seller._id.toString(),
+                fcmToken: seller.fcmToken,
+                link: '/properties-list',
+            }).catch((error) => {
+                console.error('Failed to notify seller about deleted property:', error);
+            });
+        }
+    }
     return result;
 });
 // ======================================= admin services =======================================
 const approveProperty = (id) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
-    const result = yield properties_models_1.Property.findByIdAndUpdate(id, { status: properties_constants_1.STATUS.active }, { new: true });
+    const result = yield properties_models_1.Property.findByIdAndUpdate(id, { status: properties_constants_1.STATUS.active, approvedDate: new Date() }, { new: true });
     if (!result) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Property not found');
     }
@@ -285,6 +326,18 @@ const approveProperty = (id) => __awaiter(void 0, void 0, void 0, function* () {
         link: `/properties-list/${result._id}`,
     };
     (0, notification_utils_1.sendNotificationMessage)(notificationPayload);
+    const address = (0, properties_utils_1.propertyAddress)(result.streetAddress, result.city, result.state, result.zipCode, result.county);
+    (0, activityEmail_1.sendActivityEmail)({
+        to: seller === null || seller === void 0 ? void 0 : seller.email,
+        userName: seller === null || seller === void 0 ? void 0 : seller.name,
+        subject: 'Your listing is now Active',
+        title: 'Listing Approved',
+        body: 'Your listing has been approved and is now Active on BetterOffMarket.',
+        detailLabel: 'Property',
+        detailValue: address,
+        actionUrl: `${config_1.default.client_Url}/properties-list/${result._id}`,
+        actionLabel: 'View Listing',
+    });
     void (0, properties_utils_1.notifyGetInTouchSubscribers)(result, (_b = seller === null || seller === void 0 ? void 0 : seller.name) !== null && _b !== void 0 ? _b : 'Seller').catch((error) => {
         console.error('Failed to notify GetInTouch subscribers about approved property:', error);
     });

@@ -18,6 +18,7 @@ const colors_1 = __importDefault(require("colors"));
 const mongoose_1 = __importDefault(require("mongoose"));
 const config_1 = __importDefault(require("./app/config"));
 const socket_1 = __importDefault(require("./app/socket"));
+const defaultTask_1 = require("./app/utils/defaultTask");
 const dns_1 = __importDefault(require("dns"));
 dns_1.default.setServers(['8.8.8.8', '1.1.1.1']);
 const socketServer = (0, http_1.createServer)(app_1.default);
@@ -48,6 +49,7 @@ const shutdown = (reason) => (err) => {
     }
 };
 connectDB()
+    .then(() => (0, defaultTask_1.defaultTask)())
     .then(startSocket)
     .then(startHttpServer)
     .then((s) => {
