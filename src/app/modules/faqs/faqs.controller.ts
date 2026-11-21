@@ -50,6 +50,15 @@ const result = await faqsService.updateFaqs(req.params.id, req.body);
 
 });
 
+const reorderFaqs = catchAsync(async (req: Request, res: Response) => {
+  const result = await faqsService.reorderFaqs(req.body.orders);
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: 'Faqs reordered successfully',
+    data: result,
+  });
+});
 
 const deleteFaqs = catchAsync(async (req: Request, res: Response) => {
  const result = await faqsService.deleteFaqs(req.params.id);
@@ -67,5 +76,6 @@ export const faqsController = {
   getAllFaqs,
   getFaqsById,
   updateFaqs,
+  reorderFaqs,
   deleteFaqs,
 };

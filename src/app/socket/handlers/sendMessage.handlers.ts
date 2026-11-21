@@ -14,6 +14,7 @@ interface IPayload {
     text?: string;
     receiver: string; // matches frontend's field name
     chatId?: string;
+    propertyInfo?: { _id: string; address: string; image?: string };
 }
 
 const sendMessage = async (
@@ -40,6 +41,18 @@ const sendMessage = async (
             chatId = chat._id.toString();
         }
 
+        const propertyId = payload.propertyInfo?._id?.trim();
+        const propertyAddress = payload.propertyInfo?.address?.trim();
+        const propertyImage = payload.propertyInfo?.image?.trim();
+        const propertyInfo =
+            propertyId && propertyAddress
+                ? {
+                    _id: propertyId,
+                    address: propertyAddress,
+                    ...(propertyImage ? { image: propertyImage } : {}),
+                }
+                : undefined;
+
         const message = await Message.create({
             chatId,
             senderId: user.userId,
@@ -48,6 +61,7 @@ const sendMessage = async (
             images: payload.imageUrl?.length
                 ? payload.imageUrl.map((url) => ({ url }))
                 : [],
+            ...(propertyInfo ? { propertyInfo } : {}),
         });
 
         await Chat.findByIdAndUpdate(chatId, { updatedAt: new Date() });

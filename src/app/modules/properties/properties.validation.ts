@@ -156,6 +156,7 @@ const updatePropertyValidationSchema = z.object({
         parcelIds: z.string().nullish(),
         listingPrice: z.coerce.number().positive().optional(),
         oldListingPrice: z.coerce.number().positive().optional(),
+        priceDroppedAt: z.coerce.date().nullish(),
         buyItNowPrice: z.coerce.number().optional(),
         arv: z.coerce.number().optional(),
         marketingDescription: z.string().max(3000).optional(),

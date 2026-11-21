@@ -86,6 +86,7 @@ const propertySchema: Schema<IProperty> = new Schema(
     parcelIds: { type: String, default: null },
     listingPrice: { type: Number, required: true },
     oldListingPrice: { type: Number, default: null },
+    priceDroppedAt: { type: Date, default: null },
     buyItNowPrice: { type: Number, default: null },
     arv: { type: Number, default: null },
     marketingDescription: { type: String, required: true, maxlength: 3000 },

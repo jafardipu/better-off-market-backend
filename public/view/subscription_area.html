@@ -100,16 +100,10 @@
               <td>
                 <div class="card">
                   <!-- <img src="../images/logo.png" alt="logo image" /> -->
-                  <div class="header">
-                    New Listing in Your Subscription Area
-                  </div>
+                  <div class="header">{{heading}}</div>
                   <div class="content">
                     <p>Hello {{userName}},</p>
-                    <p>
-                      Your subscription area has a new listing added on
-                      <strong>BetterOffMarket</strong>. You can view the full
-                      details below:
-                    </p>
+                    <p>{{intro}}</p>
 
                     <table class="field-table" role="presentation">
                       <tr>
@@ -120,10 +114,7 @@
                         <td class="field-label">Listed By</td>
                         <td class="field-value">{{sellerName}}</td>
                       </tr>
-                      <tr>
-                        <td class="field-label">Buyer Name</td>
-                        <td class="field-value">{{buyerName}}</td>
-                      </tr>
+                      {{extraFields}}
                     </table>
 
                     <a href="{{propertyUrl}}" target="_blank" class="btn"

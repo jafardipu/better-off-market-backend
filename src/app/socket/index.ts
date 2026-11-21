@@ -13,6 +13,7 @@ import {
     getUserIdBySocketId,
     getSocketIdByUserId,
 } from './utils/onlineUsers';
+import { setIO } from './utils/io';
 
 const handleTyping = async (
     io: Server,
@@ -35,6 +36,7 @@ const handleTyping = async (
 
 const initializeSocket = async (server: HttpServer) => {
     const io = new Server(server, { cors: { origin: '*' } });
+    setIO(io);
 
     io.use(socketAuthMiddleware);
 

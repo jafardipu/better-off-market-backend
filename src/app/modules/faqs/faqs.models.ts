@@ -6,12 +6,15 @@ const faqsSchema = new Schema<IFaqs>(
   {
     question: { type: String, required: true },
     answer: { type: String, required: true },
+    order: { type: Number, default: 0 },
     isDeleted: { type: 'boolean', default: false },
   },
   {
     timestamps: true,
   }
 );
+
+faqsSchema.index({ order: 1, createdAt: 1 });
 
 faqsSchema.pre('find', function (next) {
   this.where({ isDeleted: false });

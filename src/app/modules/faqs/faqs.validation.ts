@@ -13,7 +13,24 @@ const updateFaqsValidationSchema = z.object({
     }),
 });
 
+const reorderFaqsValidationSchema = z.object({
+    body: z.object({
+        orders: z
+            .array(
+                z.object({
+                    id: z.string({ required_error: 'FAQ id is required' }),
+                    order: z.coerce.number({
+                        required_error: 'order is required',
+                        invalid_type_error: 'order must be a number',
+                    }),
+                }),
+            )
+            .min(1, 'orders must include at least one FAQ'),
+    }),
+});
+
 export const faqsValidation = {
     createFaqsValidationSchema,
     updateFaqsValidationSchema,
+    reorderFaqsValidationSchema,
 };

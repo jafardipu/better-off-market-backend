@@ -8,6 +8,15 @@ const messageSchema = new Schema<IMessage>(
         receiverId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
         text: { type: String, default: null },
         images: { type: [{ url: String }], default: [] },
+        propertyInfo: {
+            type: {
+                _id: { type: Schema.Types.ObjectId, ref: 'Property', required: true },
+                address: { type: String, required: true },
+                image: { type: String },
+            },
+            default: undefined,
+            required: false,
+        },
         seen: { type: Boolean, default: false },
     },
     { timestamps: true },

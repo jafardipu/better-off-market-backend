@@ -37,9 +37,17 @@ router.get('/price-dropped', propertyController.getPriceDroppedProperties);
 
 router.get('/my-listing', auth(USER_ROLE.user), propertyController.getMyListingProperties);
 
+router.get('/my-rsvps', auth(USER_ROLE.user), propertyController.getMyOpenHouseRsvps);
+
 router.get('/seller/:sellerId/dashboard', propertyController.getPropertiesBySellerForDashboard);
 
 router.get('/seller/:sellerId', propertyController.getPropertiesBySeller);
+
+router.get(
+    '/:id/rsvps',
+    auth(USER_ROLE.user),
+    propertyController.getPropertyOpenHouseRsvps,
+);
 
 router.get('/:id', propertyController.getPropertyById);
 
@@ -55,20 +63,20 @@ router.patch(
 
 router.patch(
     '/increase-views/:id',
-    propertyController.increaseViewCount
-),
+    propertyController.increaseViewCount,
+);
 
-    router.patch(
-        '/increase-rsvp/:id',
-        propertyController.increaseRSVPCount
-    ),
+router.patch(
+    '/increase-rsvp/:id',
+    auth(USER_ROLE.user),
+    propertyController.increaseRSVPCount,
+);
 
-
-    router.delete(
-        '/:id',
-        auth(USER_ROLE.user, USER_ROLE.admin),
-        propertyController.deleteProperty,
-    );
+router.delete(
+    '/:id',
+    auth(USER_ROLE.user, USER_ROLE.admin),
+    propertyController.deleteProperty,
+);
 
 
 

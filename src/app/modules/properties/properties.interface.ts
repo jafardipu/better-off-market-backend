@@ -49,6 +49,7 @@ export interface IProperty {
     parcelIds?: string;
     listingPrice: number;
     oldListingPrice?: number;
+    priceDroppedAt?: Date | null;
     buyItNowPrice?: number;
     arv?: number;
     marketingDescription: string;

@@ -11,14 +11,21 @@ import {
 import { Property } from './properties.models';
 import { Types } from 'mongoose';
 import { FilterQuery, PipelineStage } from 'mongoose';
-import { notifyGetInTouchSubscribers, propertyAddress, PropertySearchQuery, toArray } from './properties.utils';
+import { notifyGetInTouchSubscribers, notifySubscribersOfPriceChange, propertyAddress, PropertySearchQuery, toArray } from './properties.utils';
 import { deleteRemovedPropertyFiles } from './properties.files';
 import { PropertyView } from '../PropertyView/PropertyView.model';
+import { OpenHouseRsvp } from '../OpenHouseRsvp/OpenHouseRsvp.model';
 import { User } from '../user/user.models';
 import { USER_ROLE } from '../user/user.constants';
 import { sendNotificationMessage } from '../notification/notification.utils';
 import { sendActivityEmail } from '../../utils/activityEmail';
 import config from '../../config';
+import { Chat } from '../chat/chat.model';
+import { Message } from '../message/message.model';
+import { serializeMessage } from '../../socket/utils/serializeMessage';
+import { getSocketIdByUserId } from '../../socket/utils/onlineUsers';
+import { getIO } from '../../socket/utils/io';
+import getChatList from '../../socket/handlers/chatList.handlers';
 
 
 
@@ -232,11 +239,16 @@ const getPriceDroppedProperties = async (query: Record<string, unknown>) => {
     $expr: { $gt: ['$oldListingPrice', '$listingPrice'] },
   } as FilterQuery<IProperty>;
 
-  const propertyQuery = new QueryBuilder(Property.find(filter), query)
+  // Always rank by most recent reduction; ignore client sort (e.g. -createdAt).
+  const { sort: _ignoredSort, ...restQuery } = query;
+
+  const propertyQuery = new QueryBuilder(
+    Property.find(filter).sort({ priceDroppedAt: -1, updatedAt: -1 }),
+    restQuery,
+  )
     .search(propertySearchableFields)
     .filter()
     .paginate()
-    .sort()
     .fields();
 
   const data = await propertyQuery.modelQuery;
@@ -348,6 +360,24 @@ const updateProperty = async (
     throw new AppError(httpStatus.NOT_FOUND, 'Property not found');
   }
 
+  const previousPrice = existing.listingPrice;
+  const nextPrice =
+    payload.listingPrice === undefined ? previousPrice : Number(payload.listingPrice);
+  const priceChanged =
+    payload.listingPrice !== undefined &&
+    Number.isFinite(nextPrice) &&
+    nextPrice !== Number(previousPrice);
+  const priceReduced =
+    payload.listingPrice !== undefined &&
+    Number.isFinite(nextPrice) &&
+    nextPrice < Number(previousPrice);
+  const isPublicListing =
+    existing.status === STATUS.active || existing.status === STATUS.under_contact;
+
+  if (priceReduced) {
+    payload.priceDroppedAt = new Date();
+  }
+
   const result = await Property.findByIdAndUpdate(id, payload, {
     new: true,
     runValidators: true,
@@ -355,6 +385,19 @@ const updateProperty = async (
 
   if (result && removedFileUrls.length) {
     await deleteRemovedPropertyFiles(removedFileUrls);
+  }
+
+  if (result && priceChanged && isPublicListing) {
+    const seller = result.seller
+      ? await User.GetUserById(result.seller.toString())
+      : null;
+    void notifySubscribersOfPriceChange(
+      result,
+      seller?.name ?? 'Seller',
+      previousPrice,
+    ).catch((error) => {
+      console.error('Failed to notify subscribers about price change:', error);
+    });
   }
 
   return result;
@@ -490,13 +533,163 @@ const increaseViewCount = async (id: string) => {
   return result;
 }
 
-const increaseRSVPCount = async (id: string) => {
-  const result = await Property.findByIdAndUpdate(id, { $inc: { totalRsvp: 1 } }, { new: true });
-  if (!result) {
+const formatOpenHouseAddress = (property: IProperty) =>
+  [property.streetAddress, property.city, [property.state, property.zipCode].filter(Boolean).join(' ')]
+    .filter(Boolean)
+    .join(', ');
+
+const sendOpenHouseRsvpMessage = async (
+  buyerId: string,
+  sellerId: string,
+  property: IProperty,
+) => {
+  let chat = await Chat.findOne({
+    participants: { $all: [buyerId, sellerId], $size: 2 },
+  });
+
+  if (!chat) {
+    chat = await Chat.create({
+      status: 'accepted',
+      participants: [buyerId, sellerId],
+    });
+  }
+
+  const chatId = chat._id.toString();
+  const address = formatOpenHouseAddress(property);
+  const image = property.photos?.[0]?.trim();
+  const propertyInfo = {
+    _id: property._id,
+    address,
+    ...(image ? { image } : {}),
+  };
+
+  const message = await Message.create({
+    chatId,
+    senderId: buyerId,
+    receiverId: sellerId,
+    text: 'I plan to attend this open house.',
+    images: [],
+    propertyInfo,
+  });
+
+  await Chat.findByIdAndUpdate(chatId, { updatedAt: new Date() });
+
+  const io = getIO();
+  if (io) {
+    const serialized = serializeMessage(message);
+    const eventName = `new-message::${chatId}`;
+    const senderSocketId = getSocketIdByUserId(buyerId);
+    const receiverSocketId = getSocketIdByUserId(sellerId);
+    if (senderSocketId) io.to(senderSocketId).emit(eventName, serialized);
+    if (receiverSocketId) io.to(receiverSocketId).emit(eventName, serialized);
+
+    await getChatList(io, { userId: buyerId }, {}, () => { });
+    await getChatList(io, { userId: sellerId }, {}, () => { });
+  }
+};
+
+const increaseRSVPCount = async (propertyId: string, buyerId: string) => {
+  if (!buyerId) {
+    throw new AppError(httpStatus.UNAUTHORIZED, 'You are not authorized');
+  }
+
+  const property = await Property.findById(propertyId);
+  if (!property) {
     throw new AppError(httpStatus.NOT_FOUND, 'Property not found');
   }
-  return result;
-}
+
+  const sellerId = property.seller?.toString();
+  if (!sellerId) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Listing has no seller');
+  }
+
+  if (sellerId === buyerId) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'You cannot RSVP to your own open house',
+    );
+  }
+
+  const existing = await OpenHouseRsvp.findOne({
+    property: propertyId,
+    buyer: buyerId,
+  });
+  if (existing) {
+    return existing;
+  }
+
+  let rsvp;
+  try {
+    rsvp = await OpenHouseRsvp.create({
+      property: propertyId,
+      seller: sellerId,
+      buyer: buyerId,
+    });
+  } catch (error: any) {
+    if (error?.code === 11000) {
+      const duplicate = await OpenHouseRsvp.findOne({
+        property: propertyId,
+        buyer: buyerId,
+      });
+      if (duplicate) return duplicate;
+    }
+    throw error;
+  }
+
+  await Property.findByIdAndUpdate(propertyId, { $inc: { totalRsvp: 1 } });
+
+  void sendOpenHouseRsvpMessage(buyerId, sellerId, property).catch((error) => {
+    console.error('Failed to send open house RSVP chat message:', error);
+  });
+
+  return rsvp;
+};
+
+const getMyOpenHouseRsvps = async (
+  userId: string,
+  role?: string | string[],
+) => {
+  const resolvedRole = Array.isArray(role) ? role[0] : role;
+  const asBuyer = resolvedRole === 'buyer';
+
+  const query = OpenHouseRsvp.find(
+    asBuyer ? { buyer: userId } : { seller: userId },
+  )
+    .sort({ createdAt: -1 })
+    .populate(
+      'property',
+      '_id streetAddress city state zipCode photos openHouse',
+    );
+
+  if (asBuyer) {
+    query.populate('seller', '_id name profile');
+  } else {
+    query.populate('buyer', '_id name profile');
+  }
+
+  return query;
+};
+
+const getPropertyOpenHouseRsvps = async (propertyId: string, userId: string) => {
+  const property = await Property.findById(propertyId).select('seller');
+  if (!property) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Property not found');
+  }
+
+  if (property.seller?.toString() !== userId) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'Only the property seller can view these RSVPs',
+    );
+  }
+
+  const data = await OpenHouseRsvp.find({ property: propertyId })
+    .sort({ createdAt: -1 })
+    .populate('buyer', '_id name')
+    .select('_id createdAt buyer');
+
+  return data;
+};
 
 export const propertyService = {
   createProperty,
@@ -514,5 +707,7 @@ export const propertyService = {
   approveProperty,
   rejectProperty,
   increaseViewCount,
-  increaseRSVPCount
+  increaseRSVPCount,
+  getMyOpenHouseRsvps,
+  getPropertyOpenHouseRsvps,
 };

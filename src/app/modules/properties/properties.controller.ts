@@ -191,11 +191,40 @@ const increaseViewCount = catchAsync(async (req: Request, res: Response) => {
 });
 
 const increaseRSVPCount = catchAsync(async (req: Request, res: Response) => {
-  const result = await propertyService.increaseRSVPCount(req.params.id);
+  const result = await propertyService.increaseRSVPCount(
+    req.params.id,
+    req.user?.userId,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
     message: 'Property RSVP count increased successfully',
+    data: result,
+  });
+});
+
+const getMyOpenHouseRsvps = catchAsync(async (req: Request, res: Response) => {
+  const result = await propertyService.getMyOpenHouseRsvps(
+    req.user?.userId,
+    req.query.role as string | string[] | undefined,
+  );
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Open house RSVPs fetched successfully',
+    data: result,
+  });
+});
+
+const getPropertyOpenHouseRsvps = catchAsync(async (req: Request, res: Response) => {
+  const result = await propertyService.getPropertyOpenHouseRsvps(
+    req.params.id,
+    req.user?.userId,
+  );
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Property open house RSVPs fetched successfully',
     data: result,
   });
 });
@@ -215,6 +244,8 @@ export const propertyController = {
   deleteProperty,
   increaseViewCount,
   increaseRSVPCount,
+  getMyOpenHouseRsvps,
+  getPropertyOpenHouseRsvps,
 
   // admin
   approveProperty,

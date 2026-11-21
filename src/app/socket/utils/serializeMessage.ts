@@ -11,4 +11,15 @@ export const serializeMessage = (msg: HydratedDocument<IMessage>) => ({
     updatedAt: msg.updatedAt,
     seen: msg.seen,
     chat: msg.chatId.toString(),
+    ...(msg.propertyInfo?._id && msg.propertyInfo?.address
+        ? {
+            propertyInfo: {
+                _id: msg.propertyInfo._id.toString(),
+                address: msg.propertyInfo.address,
+                ...(msg.propertyInfo.image
+                    ? { image: msg.propertyInfo.image }
+                    : {}),
+            },
+        }
+        : {}),
 });

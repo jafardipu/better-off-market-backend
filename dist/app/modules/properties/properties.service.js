@@ -267,16 +267,31 @@ const getPropertiesBySellerForDashboard = (sellerId, query) => __awaiter(void 0,
     return { data, meta };
 });
 const updateProperty = (id_1, payload_1, ...args_1) => __awaiter(void 0, [id_1, payload_1, ...args_1], void 0, function* (id, payload, removedFileUrls = []) {
+    var _a;
     const existing = yield properties_models_1.Property.findById(id);
     if (!existing) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Property not found');
     }
+    const previousPrice = existing.listingPrice;
+    const nextPrice = payload.listingPrice === undefined ? previousPrice : Number(payload.listingPrice);
+    const priceChanged = payload.listingPrice !== undefined &&
+        Number.isFinite(nextPrice) &&
+        nextPrice !== Number(previousPrice);
+    const isPublicListing = existing.status === properties_constants_1.STATUS.active || existing.status === properties_constants_1.STATUS.under_contact;
     const result = yield properties_models_1.Property.findByIdAndUpdate(id, payload, {
         new: true,
         runValidators: true,
     });
     if (result && removedFileUrls.length) {
         yield (0, properties_files_1.deleteRemovedPropertyFiles)(removedFileUrls);
+    }
+    if (result && priceChanged && isPublicListing) {
+        const seller = result.seller
+            ? yield user_models_1.User.GetUserById(result.seller.toString())
+            : null;
+        void (0, properties_utils_1.notifySubscribersOfPriceChange)(result, (_a = seller === null || seller === void 0 ? void 0 : seller.name) !== null && _a !== void 0 ? _a : 'Seller', previousPrice).catch((error) => {
+            console.error('Failed to notify subscribers about price change:', error);
+        });
     }
     return result;
 });

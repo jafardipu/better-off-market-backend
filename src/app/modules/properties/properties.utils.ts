@@ -51,7 +51,31 @@ const escapeHtml = (value: string) =>
         return entities[character];
     });
 
-export const notifyGetInTouchSubscribers = async (property: IProperty, sellerName: string) => {
+type SubscriberNotice = {
+    subject: string;
+    heading: string;
+    intro: string;
+    extraFields?: string;
+};
+
+const fieldRow = (label: string, value: string) =>
+    `<tr><td class="field-label">${escapeHtml(label)}</td><td class="field-value">${escapeHtml(value)}</td></tr>`;
+
+const formatUsd = (amount?: number | null) => {
+    const value = Number(amount);
+    if (!Number.isFinite(value)) return '—';
+    return value.toLocaleString('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        maximumFractionDigits: 0,
+    });
+};
+
+export const notifyGetInTouchSubscribers = async (
+    property: IProperty,
+    sellerName: string,
+    notice?: SubscriberNotice,
+) => {
     const subscribers = await GetInTouch.find({
         counties: property.county,
         propertyTypes: property.propertyType,
@@ -63,30 +87,37 @@ export const notifyGetInTouchSubscribers = async (property: IProperty, sellerNam
 
     const templatePath = path.join(__dirname, '../../../../public/view/subscription_area.html');
     const template = fs.readFileSync(templatePath, 'utf8');
+    const emailNotice: SubscriberNotice = notice ?? {
+        subject: 'New Listing in Your Subscription Area',
+        heading: 'New Listing in Your Subscription Area',
+        intro: 'Your subscription area has a new listing added on BetterOffMarket. You can view the full details below:',
+        extraFields: fieldRow('Buyer Name', 'Not applicable'),
+    };
     const replacements: Record<string, string> = {
-        userName: 'there',
-        propertyAddress: propertyAddress(
+        userName: escapeHtml('there'),
+        heading: escapeHtml(emailNotice.heading),
+        intro: escapeHtml(emailNotice.intro),
+        propertyAddress: escapeHtml(propertyAddress(
             property.streetAddress,
             property.city,
             property.state,
             property.zipCode,
             property.county,
-        ),
-        sellerName,
-        buyerName: 'Not applicable',
-        propertyUrl: `${config.client_Url}/properties-list/${property._id}`,
-        year: new Date().getFullYear().toString(),
+        )),
+        sellerName: escapeHtml(sellerName),
+        extraFields: emailNotice.extraFields ?? '',
+        propertyUrl: escapeHtml(`${config.client_Url}/properties-list/${property._id}`),
+        year: escapeHtml(new Date().getFullYear().toString()),
     };
 
     const html = Object.entries(replacements).reduce(
-        (content, [placeholder, value]) =>
-            content.replace(`{{${placeholder}}}`, escapeHtml(value)),
+        (content, [placeholder, value]) => content.replace(`{{${placeholder}}}`, value),
         template,
     );
 
     const emailResults = await Promise.allSettled(
         subscribers.map((subscriber) =>
-            sendEmail(subscriber.email, 'New Listing in Your Subscription Area', html),
+            sendEmail(subscriber.email, emailNotice.subject, html),
         ),
     );
 
@@ -99,3 +130,17 @@ export const notifyGetInTouchSubscribers = async (property: IProperty, sellerNam
         }
     });
 };
+
+export const notifySubscribersOfPriceChange = async (
+    property: IProperty,
+    sellerName: string,
+    previousPrice?: number | null,
+) =>
+    notifyGetInTouchSubscribers(property, sellerName, {
+        subject: 'Listing Price Updated in Your Subscription Area',
+        heading: 'Listing Price Updated',
+        intro: 'A listing in your subscription area has a new asking price on BetterOffMarket.',
+        extraFields:
+            fieldRow('Previous Price', formatUsd(previousPrice)) +
+            fieldRow('New Price', formatUsd(property.listingPrice)),
+    });

@@ -4,6 +4,12 @@ export interface IMessageImage {
     url: string;
 }
 
+export interface IMessagePropertyInfo {
+    _id: Types.ObjectId;
+    address: string;
+    image?: string;
+}
+
 export interface IMessage {
     _id?: Types.ObjectId;
     chatId: Types.ObjectId;
@@ -11,6 +17,7 @@ export interface IMessage {
     receiverId: Types.ObjectId;
     text?: string;
     images?: IMessageImage[];
+    propertyInfo?: IMessagePropertyInfo;
     seen: boolean;
     createdAt?: Date;
     updatedAt?: Date;
