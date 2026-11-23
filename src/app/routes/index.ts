@@ -17,6 +17,7 @@ import { faqsRoutes } from '../modules/faqs/faqs.route';
 import { chatRoutes } from '../modules/chat/chat.route';
 import { contactRouter } from '../modules/contactUs/contactUs.route';
 import { agreementRoute } from '../modules/agreement/agreement.route';
+import { propertyContractRoutes } from '../modules/propertyContract/propertyContract.route';
 
 const router = Router();
 const moduleRoutes = [
@@ -91,7 +92,11 @@ const moduleRoutes = [
   {
     path: '/agreements',
     route: agreementRoute,
-  }
+  },
+  {
+    path: '/property-contracts',
+    route: propertyContractRoutes,
+  },
 ];
 moduleRoutes.forEach(route => router.use(route.path, route.route));
 

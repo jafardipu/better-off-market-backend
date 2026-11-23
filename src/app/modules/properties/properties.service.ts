@@ -349,15 +349,46 @@ const getPropertiesBySellerForDashboard = async (
   return { data, meta };
 };
 
+// Seller-only status rules for PATCH /properties/:id. Sending the current
+// status again is not a change and is always allowed.
+// - Under Contract can only be set via POST /property-contracts, so the contract
+//   details and admin alerts are always recorded.
+// - Sold can only be set from Under Contract.
+const assertSellerStatusChangeAllowed = (
+  currentStatus: string,
+  nextStatus?: string,
+) => {
+  if (!nextStatus || nextStatus === currentStatus) return;
+
+  if (nextStatus === STATUS.under_contact) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'To mark this property as Under Contract, use the Mark Under Contract form',
+    );
+  }
+
+  if (nextStatus === STATUS.sold && currentStatus !== STATUS.under_contact) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'A property can only be marked as Sold while it is Under Contract',
+    );
+  }
+};
+
 const updateProperty = async (
   id: string,
   payload: Partial<IProperty>,
   removedFileUrls: string[] = [],
+  actor: { userId?: string; role?: string } = {},
 ) => {
 
   const existing = await Property.findById(id);
   if (!existing) {
     throw new AppError(httpStatus.NOT_FOUND, 'Property not found');
+  }
+
+  if (actor.role === USER_ROLE.user) {
+    assertSellerStatusChangeAllowed(existing.status, payload.status);
   }
 
   const previousPrice = existing.listingPrice;

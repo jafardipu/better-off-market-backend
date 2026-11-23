@@ -23,6 +23,9 @@ export default {
   database_url: process.env.DATABASE_URL,
   server_url: process.env.SERVER_URL,
   client_Url: process.env.CLIENT_URL,
+  // Base URL of the admin dashboard, used in admin emails. Falls back to
+  // CLIENT_URL, which is what older admin emails link to.
+  admin_dashboard_url: process.env.ADMIN_DASHBOARD_URL || process.env.CLIENT_URL,
   bcrypt_salt_rounds: process.env.BCRYPT_SALT_ROUNDS,
   jwt_access_secret: process.env.JWT_ACCESS_SECRET,
   jwt_refresh_secret: process.env.JWT_REFRESH_SECRET,

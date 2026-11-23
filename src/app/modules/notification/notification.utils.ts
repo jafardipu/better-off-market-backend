@@ -7,9 +7,13 @@ type TNotificationType = {
     userId: string;
     fcmToken?: string
     link?: string
+    // Optional typed-notification fields; existing callers don't set them.
+    type?: string;
+    title?: string;
+    metadata?: Record<string, string>;
 }
 
-export const sendNotificationMessage = async ({ message, description, userId, fcmToken, link }: TNotificationType) => {
+export const sendNotificationMessage = async ({ message, description, userId, fcmToken, link, type, title, metadata }: TNotificationType) => {
     const notificationPayload: { message: string; description: string; link?: string } = {
         message,
         description,
@@ -21,6 +25,9 @@ export const sendNotificationMessage = async ({ message, description, userId, fc
 
     await Notification.create({
         ...notificationPayload,
+        ...(type ? { type } : {}),
+        ...(title ? { title } : {}),
+        ...(metadata ? { metadata } : {}),
         receiver: userId,
     });
 
@@ -33,6 +40,7 @@ export const sendNotificationMessage = async ({ message, description, userId, fc
     await sendNotification([token], {
         ...notificationPayload,
         userId: userId,
+        ...(type || metadata ? { data: { ...(type ? { type } : {}), ...(metadata ?? {}) } } : {}),
     });
 
 };

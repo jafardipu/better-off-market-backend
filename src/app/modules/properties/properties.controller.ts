@@ -136,6 +136,7 @@ const updateProperty = catchAsync(async (req: Request, res: Response) => {
     req.params.id,
     req.body,
     removedPropertyFileUrls,
+    { userId: req.user?.userId, role: req.user?.role },
   );
   sendResponse(res, {
     statusCode: httpStatus.OK,

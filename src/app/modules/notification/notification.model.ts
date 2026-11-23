@@ -30,6 +30,16 @@ const NotificationSchema = new Schema<TNotification>(
       type: String,
       default: '',
     },
+    // Optional: set only by typed notifications; absent on older records.
+    type: {
+      type: String,
+    },
+    title: {
+      type: String,
+    },
+    metadata: {
+      type: Schema.Types.Mixed,
+    },
     isDeleted: {
       type: Boolean,
       default: false,
