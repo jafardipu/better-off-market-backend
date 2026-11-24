@@ -16,8 +16,11 @@ import { dashboardRoutes } from '../dashboard/dashboard.route';
 import { faqsRoutes } from '../modules/faqs/faqs.route';
 import { chatRoutes } from '../modules/chat/chat.route';
 import { contactRouter } from '../modules/contactUs/contactUs.route';
-import { agreementRoute } from '../modules/agreement/agreement.route';
+// OLD FLOW (contracts / e-signing) — disabled for now on attorney advice.
+// import { agreementRoute } from '../modules/agreement/agreement.route';
 import { propertyContractRoutes } from '../modules/propertyContract/propertyContract.route';
+// NEW FLOW: buyer activity tracking for admins
+import { buyerActivityRoutes } from '../modules/buyerActivity/buyerActivity.route';
 
 const router = Router();
 const moduleRoutes = [
@@ -89,13 +92,19 @@ const moduleRoutes = [
     path: '/contact-us',
     route: contactRouter,
   },
-  {
-    path: '/agreements',
-    route: agreementRoute,
-  },
+  // OLD FLOW (contracts / e-signing) — disabled for now on attorney advice.
+  // {
+  //   path: '/agreements',
+  //   route: agreementRoute,
+  // },
   {
     path: '/property-contracts',
     route: propertyContractRoutes,
+  },
+  // NEW FLOW: buyer activity tracking for admins
+  {
+    path: '/buyer-activities',
+    route: buyerActivityRoutes,
   },
 ];
 moduleRoutes.forEach(route => router.use(route.path, route.route));

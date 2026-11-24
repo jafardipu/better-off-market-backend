@@ -6,8 +6,14 @@ import { OFFER_STATUS, CLOSED_OFFER_STATUSES } from './offer.constants';
 import { Offer } from './offer.models';
 import { Property } from '../properties/properties.models';
 import { STATUS } from '../properties/properties.constants';
-import { generateOfferPdf, generatePropertyPdf } from './offer.utils';
-import { Agreement } from '../agreement/agreement.model';
+// OLD FLOW (contracts / e-signing) — disabled for now on attorney advice.
+// import { generateOfferPdf, generatePropertyPdf } from './offer.utils';
+// OLD FLOW (contracts / e-signing) — disabled for now on attorney advice.
+// import { Agreement } from '../agreement/agreement.model';
+// NEW FLOW: offer-accept notifications
+import { notifyOfferAccepted } from './offer.utils';
+// NEW FLOW: buyer activity tracking
+import { recordBuyerActivity } from '../buyerActivity/buyerActivity.utils';
 import mongoose from 'mongoose';
 import { sendNotificationMessage } from '../notification/notification.utils';
 import { propertyAddress } from '../properties/properties.utils';
@@ -79,6 +85,11 @@ const createOffer = async (
   });
 
   await Property.findByIdAndUpdate(propertyId, { $inc: { totalOffers: 1 } });
+
+  // NEW FLOW: buyer activity tracking (first offer on this listing)
+  void recordBuyerActivity(buyerId, propertyId, 'firstOfferSubmittedAt', {
+    sellerId: seller._id,
+  });
 
   const buyer = await User.findById(buyerId).select('-password');
 
@@ -192,6 +203,13 @@ const counterOffer = async (
   const buyer = offer?.buyer as any;
   const seller = offer?.seller as any;
   const property = offer?.property as any;
+
+  // NEW FLOW: buyer activity tracking (first counter-offer by either party, recorded for the buyer)
+  if (result) {
+    void recordBuyerActivity(buyer?._id, property?._id, 'firstNegotiationAt', {
+      sellerId: property?.seller,
+    });
+  }
 
   const notificationPayload = {
     message: `A counter offer has been received from ${actingAs} ${actingAs === 'buyer' ? buyer?.name : seller?.name}.`,
@@ -414,21 +432,24 @@ const acceptOffer = async (offerId: string, userId: string) => {
       throw new AppError(httpStatus.BAD_REQUEST, 'This offer is already closed or on process');
     }
 
-    await Property.findOneAndUpdate(
-      { _id: offer.property._id },
-      { status: STATUS.under_contact },
-      { session },
-    )
+    // OLD FLOW (contracts / e-signing) — disabled for now on attorney advice.
+    // (NEW FLOW: the property becomes "Under Contract" only when the seller submits contract details via POST /property-contracts.)
+    // await Property.findOneAndUpdate(
+    //   { _id: offer.property._id },
+    //   { status: STATUS.under_contact },
+    //   { session },
+    // )
 
     const offerAcceptedBy =
       offer?.buyer?._id?.toString() === userId ? 'buyer' : 'seller';
 
-    // PDF generation happens outside the DB transaction (it's not a DB write),
-    // but if it throws, the catch block below still aborts before any writes commit
-    const [agreementMainDoc, propertyAgreementDoc] = await Promise.all([
-      generateOfferPdf(offer),
-      generatePropertyPdf(offer),
-    ]);
+    // OLD FLOW (contracts / e-signing) — disabled for now on attorney advice.
+    // // PDF generation happens outside the DB transaction (it's not a DB write),
+    // // but if it throws, the catch block below still aborts before any writes commit
+    // const [agreementMainDoc, propertyAgreementDoc] = await Promise.all([
+    //   generateOfferPdf(offer),
+    //   generatePropertyPdf(offer),
+    // ]);
 
 
     const result = await Offer.findByIdAndUpdate(
@@ -437,39 +458,53 @@ const acceptOffer = async (offerId: string, userId: string) => {
       { new: true, session },
     );
 
-    await Agreement.create(
-      [
-        {
-          offer: offer._id,
-          property: offer.property._id,
-          buyer: offer.buyer._id,
-          seller: offer.seller._id,
-          agreementMainDoc,
-          propertyAgreementDoc,
-        },
-      ],
-      { session },
+    // OLD FLOW (contracts / e-signing) — disabled for now on attorney advice.
+    // await Agreement.create(
+    //   [
+    //     {
+    //       offer: offer._id,
+    //       property: offer.property._id,
+    //       buyer: offer.buyer._id,
+    //       seller: offer.seller._id,
+    //       agreementMainDoc,
+    //       propertyAgreementDoc,
+    //     },
+    //   ],
+    //   { session },
+    //
+    // );
 
-    );
 
-
-    // ======= notification logic =======
-    const buyer = offer?.buyer as any;
-    const seller = offer?.seller as any;
-    const property = offer?.property as any;
-
-    const notificationPayload = {
-      message: offerAcceptedBy === 'seller' ? `Your offer has been accepted by seller. Please add your authorized signer` : `Your offer has been accepted by buyer. Please add your authorized signer`,
-      description: `The offer has been accepted by ${offerAcceptedBy === 'seller' ? "buyer" : "seller"} ${seller?.name} for the property  ${property?.streetAddress}, ${property?.city}, ${property?.state}, ${property?.zipCode}, ${property?.county}.`,
-      userId: offerAcceptedBy === 'seller' ? buyer?._id?.toString() : seller?._id?.toString(),
-      fcmToken: offerAcceptedBy === 'seller' ? buyer?.fcmToken : seller?.fcmToken,
-      link: offerAcceptedBy === 'seller' ? `/review-sent-offer?offer=${offer?._id}` : `/user/offers-received/${offer?._id}`,
-    };
-
-    sendNotificationMessage(notificationPayload);
+    // OLD FLOW (contracts / e-signing) — disabled for now on attorney advice.
+    // // ======= notification logic =======
+    // const buyer = offer?.buyer as any;
+    // const seller = offer?.seller as any;
+    // const property = offer?.property as any;
+    //
+    // const notificationPayload = {
+    //   message: offerAcceptedBy === 'seller' ? `Your offer has been accepted by seller. Please add your authorized signer` : `Your offer has been accepted by buyer. Please add your authorized signer`,
+    //   description: `The offer has been accepted by ${offerAcceptedBy === 'seller' ? "buyer" : "seller"} ${seller?.name} for the property  ${property?.streetAddress}, ${property?.city}, ${property?.state}, ${property?.zipCode}, ${property?.county}.`,
+    //   userId: offerAcceptedBy === 'seller' ? buyer?._id?.toString() : seller?._id?.toString(),
+    //   fcmToken: offerAcceptedBy === 'seller' ? buyer?.fcmToken : seller?.fcmToken,
+    //   link: offerAcceptedBy === 'seller' ? `/review-sent-offer?offer=${offer?._id}` : `/user/offers-received/${offer?._id}`,
+    // };
+    //
+    // sendNotificationMessage(notificationPayload);
 
 
     await session.commitTransaction();
+
+    // NEW FLOW: accept notifications, sent only after the accept is committed.
+    // Always the buyer; the seller too when the buyer clicked Accept.
+    // notifyOfferAccepted never throws, so the response doesn't wait on it or fail with it.
+    void notifyOfferAccepted({
+      offerId: offer._id.toString(),
+      acceptedBy: offerAcceptedBy,
+      buyer: offer.buyer as any,
+      seller: offer.seller as any,
+      property: offer.property as any,
+    });
+
     return result;
   } catch (error) {
     await session.abortTransaction();

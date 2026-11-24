@@ -5,6 +5,8 @@ import { IOffer } from './offer.interface';
 import { uploadToS3 } from '../../utils/s3';
 import AppError from '../../error/AppError';
 import httpStatus from 'http-status';
+// NEW FLOW: offer-accept notifications
+import { sendNotificationMessage } from '../notification/notification.utils';
 
 
 const formatCurrency = (value: number | string | null | undefined): string => {
@@ -237,6 +239,116 @@ export const generatePropertyPdf = async (offer: IOffer): Promise<string | undef
         console.error('Error generating property PDF:', error);
         return null;
     }
+};
+
+// NEW FLOW: offer-accept notifications (replace the old "add your authorized signer" notification)
+
+type TAcceptedOfferParty = {
+    _id?: { toString(): string };
+    fcmToken?: string;
+};
+
+type TAcceptedOfferProperty = {
+    streetAddress?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+};
+
+const joinPresent = (parts: (string | null | undefined)[], separator: string) =>
+    parts
+        .map((part) => (typeof part === 'string' ? part.trim() : ''))
+        .filter(Boolean)
+        .join(separator);
+
+// "<streetAddress>, <city>, <state> <zipCode>"
+export const formatAcceptedOfferAddress = (property: TAcceptedOfferProperty) =>
+    joinPresent(
+        [
+            property?.streetAddress,
+            property?.city,
+            joinPresent([property?.state, property?.zipCode], ' '),
+        ],
+        ', ',
+    );
+
+// Sent to the buyer on every accept, whoever clicked Accept.
+export const buildBuyerAgreementNotification = (
+    offerId: string,
+    property: TAcceptedOfferProperty,
+) => ({
+    message: "Congratulations! You've Reached an Agreement!",
+    description: [
+        `Congratulations on reaching an agreement to purchase ${formatAcceptedOfferAddress(property)}!`,
+        'Now that both parties have agreed to the terms, the next step is to prepare and execute a formal purchase agreement outlining the agreed-upon terms and conditions.',
+        'Once the agreement is signed by both parties, notify a trusted title company to begin coordinating the closing process and handling the necessary next steps.',
+        'This is your first step toward closing. Congratulations again!',
+    ].join('\n\n'),
+    link: `/review-sent-offer?offer=${offerId}`,
+});
+
+// Sent to the seller only when the BUYER clicked Accept. When the seller
+// clicks Accept, the website shows the contract-details pop-up on screen.
+export const buildSellerContractDetailsNotification = (
+    offerId: string,
+    property: TAcceptedOfferProperty,
+) => ({
+    message: `Congratulations! The buyer accepted the offer on ${joinPresent([property?.streetAddress, property?.city], ', ')}`,
+    description:
+        'Please submit the contract details for this property and confirm how the buyer first contacted you.',
+    link: `/user/offers-received/${offerId}?contractDetails=1`,
+});
+
+// Sends the accept notifications through the usual notification service
+// (saved record + push). Never throws; each failure is logged.
+export const notifyOfferAccepted = async ({
+    offerId,
+    acceptedBy,
+    buyer,
+    seller,
+    property,
+}: {
+    offerId: string;
+    acceptedBy: 'buyer' | 'seller';
+    buyer: TAcceptedOfferParty | null | undefined;
+    seller: TAcceptedOfferParty | null | undefined;
+    property: TAcceptedOfferProperty;
+}) => {
+    const sends: { recipient: string; send: () => Promise<void> }[] = [];
+
+    if (buyer?._id) {
+        sends.push({
+            recipient: 'buyer',
+            send: () =>
+                sendNotificationMessage({
+                    ...buildBuyerAgreementNotification(offerId, property),
+                    userId: buyer._id!.toString(),
+                    fcmToken: buyer.fcmToken,
+                }),
+        });
+    }
+
+    if (acceptedBy === 'buyer' && seller?._id) {
+        sends.push({
+            recipient: 'seller',
+            send: () =>
+                sendNotificationMessage({
+                    ...buildSellerContractDetailsNotification(offerId, property),
+                    userId: seller._id!.toString(),
+                    fcmToken: seller.fcmToken,
+                }),
+        });
+    }
+
+    const results = await Promise.allSettled(sends.map(({ send }) => send()));
+    results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+            console.error(
+                `Offer ${offerId}: accept notification to ${sends[index].recipient} failed:`,
+                result.reason,
+            );
+        }
+    });
 };
 
 

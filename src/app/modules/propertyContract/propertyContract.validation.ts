@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import {
+  BUYER_CONTACT_SOURCE_REQUIRED_MESSAGE,
+  BUYER_CONTACT_SOURCES,
   BUYER_NAME_MAX_LENGTH,
+  CERTIFICATION_REQUIRED_MESSAGE,
   TITLE_COMPANY_MAX_LENGTH,
 } from './propertyContract.constants';
 import {
@@ -44,6 +47,24 @@ const createPropertyContractValidationSchema = z.object({
         .nullish(),
     ),
     titleCompany: optionalText('Title company', TITLE_COMPANY_MAX_LENGTH),
+
+    // NEW FLOW: sent when the pop-up is opened from an accepted offer.
+    offerId: z.preprocess(
+      blankToNull,
+      z
+        .string({ invalid_type_error: 'offerId must be a string' })
+        .trim()
+        .refine(isObjectIdString, 'offerId is not a valid id')
+        .nullish(),
+    ),
+    // NEW FLOW: required answer and certification (manual and offer flows).
+    buyerContactSource: z.enum(
+      BUYER_CONTACT_SOURCES as [string, ...string[]],
+      { errorMap: () => ({ message: BUYER_CONTACT_SOURCE_REQUIRED_MESSAGE }) },
+    ),
+    certified: z.literal(true, {
+      errorMap: () => ({ message: CERTIFICATION_REQUIRED_MESSAGE }),
+    }),
   }),
 });
 

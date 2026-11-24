@@ -7,6 +7,8 @@ import parseData from '../../middleware/parseData';
 import auth from '../../middleware/auth';
 import { USER_ROLE } from '../user/user.constants';
 import processPropertyFiles from './properties.upload.middleware';
+// NEW FLOW: buyer activity tracking
+import optionalAuth from '../../middleware/optionalAuth';
 
 const router = Router();
 const upload = multer({ storage: memoryStorage() });
@@ -61,8 +63,11 @@ router.patch(
     propertyController.updateProperty,
 );
 
+// NEW FLOW: buyer activity tracking — optional auth so a logged-in viewer is
+// recorded; guests and invalid/expired tokens are counted as before (never 401).
 router.patch(
     '/increase-views/:id',
+    optionalAuth(),
     propertyController.increaseViewCount,
 );
 

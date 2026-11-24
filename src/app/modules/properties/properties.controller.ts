@@ -182,7 +182,11 @@ const rejectProperty = catchAsync(async (req: Request, res: Response) => {
 });
 
 const increaseViewCount = catchAsync(async (req: Request, res: Response) => {
-  const result = await propertyService.increaseViewCount(req.params.id);
+  // NEW FLOW: buyer activity tracking — req.user is set only for a valid token (optionalAuth).
+  const result = await propertyService.increaseViewCount(
+    req.params.id,
+    req.user?.userId,
+  );
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,

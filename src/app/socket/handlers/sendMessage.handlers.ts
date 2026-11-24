@@ -8,6 +8,8 @@ import { getSocketIdByUserId } from '../utils/onlineUsers';
 import { User } from '../../modules/user/user.models';
 import { sendActivityEmail } from '../../utils/activityEmail';
 import config from '../../config';
+// NEW FLOW: buyer activity tracking
+import { recordBuyerMessagedSeller } from '../../modules/buyerActivity/buyerActivity.utils';
 
 interface IPayload {
     imageUrl?: string[]; // matches frontend's field name
@@ -63,6 +65,13 @@ const sendMessage = async (
                 : [],
             ...(propertyInfo ? { propertyInfo } : {}),
         });
+
+        // NEW FLOW: buyer activity tracking — a message started from a listing's
+        // "Message seller" button (propertyInfo._id) counts when it goes from a
+        // non-seller TO that listing's seller. Checked inside; never throws.
+        if (propertyId) {
+            void recordBuyerMessagedSeller(user.userId, payload.receiver, propertyId);
+        }
 
         await Chat.findByIdAndUpdate(chatId, { updatedAt: new Date() });
 

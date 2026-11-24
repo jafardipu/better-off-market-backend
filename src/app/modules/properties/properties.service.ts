@@ -26,6 +26,8 @@ import { serializeMessage } from '../../socket/utils/serializeMessage';
 import { getSocketIdByUserId } from '../../socket/utils/onlineUsers';
 import { getIO } from '../../socket/utils/io';
 import getChatList from '../../socket/handlers/chatList.handlers';
+// NEW FLOW: buyer activity tracking
+import { recordBuyerActivity } from '../buyerActivity/buyerActivity.utils';
 
 
 
@@ -548,7 +550,7 @@ const rejectProperty = async (id: string) => {
   return result;
 }
 
-const increaseViewCount = async (id: string) => {
+const increaseViewCount = async (id: string, viewerId?: string) => {
   const result = await Property.findByIdAndUpdate(id, { $inc: { totalViews: 1 } }, { new: true });
   if (!result) {
     throw new AppError(httpStatus.NOT_FOUND, 'Property not found');
@@ -560,6 +562,13 @@ const increaseViewCount = async (id: string) => {
   }).catch((err) => {
     console.error('Failed to log property view:', err);
   });
+
+  // NEW FLOW: buyer activity tracking (first view by a logged-in user; guests are not tracked)
+  if (viewerId) {
+    void recordBuyerActivity(viewerId, id, 'firstViewedAt', {
+      sellerId: result.seller,
+    });
+  }
 
   return result;
 }
@@ -646,6 +655,11 @@ const increaseRSVPCount = async (propertyId: string, buyerId: string) => {
     buyer: buyerId,
   });
   if (existing) {
+    // NEW FLOW: buyer activity tracking — use the original RSVP time ($min keeps the earliest)
+    void recordBuyerActivity(buyerId, propertyId, 'firstRsvpAt', {
+      sellerId,
+      at: existing.createdAt,
+    });
     return existing;
   }
 
@@ -666,6 +680,12 @@ const increaseRSVPCount = async (propertyId: string, buyerId: string) => {
     }
     throw error;
   }
+
+  // NEW FLOW: buyer activity tracking (first open-house RSVP)
+  void recordBuyerActivity(buyerId, propertyId, 'firstRsvpAt', {
+    sellerId,
+    at: rsvp.createdAt,
+  });
 
   await Property.findByIdAndUpdate(propertyId, { $inc: { totalRsvp: 1 } });
 

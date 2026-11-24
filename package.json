@@ -15,6 +15,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start:prod": "node ./dist/server.js",
     "seed": "node -r ts-node/register/transpile-only src/seed.ts",
+    "backfill:buyer-activity": "node -r ts-node/register/transpile-only src/scripts/backfillBuyerActivity.ts",
     "prepare": "husky"
   },
   "author": "Jafar Uddin Dipu",

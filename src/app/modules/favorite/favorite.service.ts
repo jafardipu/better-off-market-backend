@@ -6,6 +6,8 @@ import Favorite from './favorite.models';
 import AppError from '../../error/AppError';
 import { Property } from '../properties/properties.models';
 import { STATUS } from '../properties/properties.constants';
+// NEW FLOW: buyer activity tracking
+import { recordBuyerActivity } from '../buyerActivity/buyerActivity.utils';
 
 const SAVED_PROPERTY_STATUSES = [
   STATUS.active,
@@ -31,6 +33,10 @@ const createFavorite = async (payload: IFavorite) => {
   if (!result) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Failed to create favorite');
   }
+
+  // NEW FLOW: buyer activity tracking (first save; removing a favorite never clears it)
+  void recordBuyerActivity(result.user, result.property, 'firstSavedAt');
+
   return result;
 };
 

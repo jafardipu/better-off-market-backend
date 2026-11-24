@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Backend for BetterOffMarket, a real-estate marketplace. Sellers list properties, buyers make and counter offers, and an accepted offer produces PDF agreements that both parties' authorized signers e-sign. It is an Express + TypeScript + Mongoose REST API (all routes under `/api/v1`) with a Socket.IO chat server. The `praying-backend` name in `package.json` is left over from a template.
+Backend for BetterOffMarket, a real-estate marketplace. Sellers list properties, buyers make and counter offers, and the seller then submits contract details for the deal (the PDF agreement / e-signing flow is switched off; see "Core business flow"). It is an Express + TypeScript + Mongoose REST API (all routes under `/api/v1`) with a Socket.IO chat server. The `praying-backend` name in `package.json` is left over from a template.
 
 ## Commands
 
@@ -15,6 +15,7 @@ Backend for BetterOffMarket, a real-estate marketplace. Sellers list properties,
 | Build | `npm run build` | `tsc` → `dist/`. Still emits despite the type error, but exits non-zero |
 | Run build | `npm run start:prod` | `node dist/server.js`. `npm start` is only `tsc --watch` and does **not** start the server |
 | Seed | `npm run seed` | Runs `defaultTask()` and exits |
+| Buyer activity backfill | `npm run backfill:buyer-activity` | One-off, safe to re-run (`$min` upserts). After a build: `node dist/scripts/backfillBuyerActivity.js` |
 | Scaffold module | `npm run generate` | Interactive: asks for the parent path (`src/app/modules`) and the module name. The generated service imports `../../builder/QueryBuilder`; change it to `../../class/builder/QueryBuilder` |
 | Lint | `ESLINT_USE_FLAT_CONFIG=false npx eslint --ext .ts src` | `npm run lint:check` is broken: ESLint 8.57 prefers `eslint.config.mjs`, which imports packages that are not installed (`globals`, `typescript-eslint`). Forcing the legacy `.eslintrc` works; about 35 errors already exist |
 
@@ -44,7 +45,7 @@ Backend for BetterOffMarket, a real-estate marketplace. Sellers list properties,
 - **Soft delete:** models carry `isDeleted` plus `pre('find' | 'findOne' | 'aggregate')` hooks that hide deleted docs. "Delete" means setting `isDeleted: true`. `countDocuments` is not covered by these hooks.
 
 ### Auth
-- **Mechanism:** `auth(...roles)` reads `Authorization: Bearer <jwt>` and sets `req.user` (`{ userId, role, ... }`).
+- **Mechanism:** `auth(...roles)` reads `Authorization: Bearer <jwt>` and sets `req.user` (`{ userId, role, ... }`). `optionalAuth()` sets `req.user` only for a valid token and never rejects (used by `PATCH /properties/increase-views/:id`).
 - **Roles** (`USER_ROLE`): `user`, `admin`, `sub_admin`, `super_admin`.
 - **No hierarchy:** `auth(USER_ROLE.admin)` rejects `super_admin`, so list every role you allow. `auth()` with no arguments rejects everyone.
 
@@ -63,14 +64,18 @@ Further details:
 - `middleware/fileUpload.ts` (disk storage) is legacy.
 
 ### Core business flow
-- **Property status** (`STATUS` in `properties.constants.ts`): `Pending` on create → admin approves to `Active` (or `Rejected`) → `Under Contract` when an offer is accepted → `Sold` when the agreement is fully signed. The constant key is spelled `STATUS.under_contact`.
+- **Contracts / e-signing are OFF (attorney advice, possibly temporary).** The old code is commented out, not deleted, under the marker `// OLD FLOW (contracts / e-signing) — disabled for now on attorney advice.`; its replacement sits next to it under `// NEW FLOW: …`. Restoring means uncommenting. Never delete the commented code, the `Agreement` model or its fields. `grep -rn "OLD FLOW" src` lists every switch-off point (accept flow in `offer.service.ts`, agreement route registration in `routes/index.ts`).
+- **Property status** (`STATUS` in `properties.constants.ts`): `Pending` on create → admin approves to `Active` (or `Rejected`) → `Under Contract` only when the seller submits contract details (`POST /property-contracts`) → `Sold`, set by the seller with `PATCH /properties/:id` while Under Contract. The constant key is spelled `STATUS.under_contact`.
 - **Offers:** status goes `pending` ↔ `countered`; the latest terms live in `currentTerms`. `accepted`, `rejected` and `withdrawn` are terminal (`CLOSED_OFFER_STATUSES`).
-- **`acceptOffer`** runs in a transaction. It:
+- **Accept (current flow):** `acceptOffer` only marks the offer accepted, then notifies the buyer ("Congratulations! You've Reached an Agreement!") and, when the buyer clicked Accept, the seller (link `?contractDetails=1` opens the contract-details pop-up). It does not touch the property status.
+- **Contract details** (`propertyContract` module): one record per submission. From an accepted offer (`offerId`) it links `offer` + `buyer`, sets `offer.isContractDetailsSubmitted`, and is allowed even if the property is already Under Contract. The seller must answer `buyerContactSource` and certify.
+- **Buyer activity** (`buyerActivity` module): one doc per buyer + property with the FIRST time of view, save, RSVP, message-to-seller, offer and counter. Written only via `recordBuyerActivity` (`$min` upsert, never throws, fire-and-forget). Never store `null` in those date fields: `null` sorts below dates, so `$min` could never set them. Admin contracts are flagged `needsReview` when the answer is `independent`/`unsure` but activity exists (input for a possible 2% Buyer Platform Fee).
+- **Old `acceptOffer` (disabled)** ran in a transaction. It:
   - sets the property to Under Contract;
   - fills the PDF form templates with pdf-lib in `offer.utils.ts`: `offer_agreement.pdf` plus the Ohio or Kentucky property agreement, chosen by `property.countyType === 'OHIO'`;
   - uploads both PDFs to S3;
   - creates an `Agreement`.
-- **Agreements** are keyed by **offer id** in routes.
+- **Agreements (disabled; routes are not registered, so they 404)** are keyed by **offer id** in routes.
   1. Each side adds authorized signers (`/agreements/seller-authorize/:offerId`, `/buyer-authorize/:offerId`).
   2. Each signer is emailed `${CLIENT_URL}/agreement/<offerId>?email=…&user=seller|buyer`.
   3. `PATCH /agreements/:offerId/sign` is **unauthenticated**; the signer is matched by email plus role.

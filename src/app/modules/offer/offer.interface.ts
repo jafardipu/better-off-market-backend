@@ -64,7 +64,8 @@ export interface IOffer {
     isBuyerAddedAuthorizedSigner: boolean;
     isSellerAddedAuthorizedSigner: boolean;
 
-
+    // NEW FLOW: true once the seller submits contract details for this offer (POST /property-contracts with offerId)
+    isContractDetailsSubmitted: boolean;
 
     status: OfferStatus;
     currentRound: number;

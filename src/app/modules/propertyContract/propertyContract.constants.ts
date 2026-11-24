@@ -7,6 +7,48 @@ export const CONTRACT_ALLOWED_FROM_STATUSES: string[] = [
   STATUS.pending,
 ];
 
+// NEW FLOW: the seller's answer to "How did the buyer first initiate contact
+// with you regarding this specific property?"
+export const BUYER_CONTACT_SOURCE = {
+  betteroffmarket: 'betteroffmarket',
+  independent: 'independent',
+  unsure: 'unsure',
+} as const;
+
+export const BUYER_CONTACT_SOURCES: string[] = Object.values(BUYER_CONTACT_SOURCE);
+
+// Full sentences shown to admins for each answer.
+export const BUYER_CONTACT_SOURCE_LABELS: Record<string, string> = {
+  [BUYER_CONTACT_SOURCE.betteroffmarket]:
+    'The buyer first contacted me about this property through BetterOffMarket.',
+  [BUYER_CONTACT_SOURCE.independent]:
+    'The buyer first contacted me about this property through another source, independently of BetterOffMarket.',
+  [BUYER_CONTACT_SOURCE.unsure]: 'I am unsure / unable to determine.',
+};
+
+// Answers that need an admin review when the buyer also has BetterOffMarket
+// activity on the listing.
+export const NEEDS_REVIEW_CONTACT_SOURCES: string[] = [
+  BUYER_CONTACT_SOURCE.independent,
+  BUYER_CONTACT_SOURCE.unsure,
+];
+
+export const CONTRACT_SOURCE = {
+  offer_accepted: 'offer_accepted',
+  manual: 'manual',
+} as const;
+
+export const CONTRACT_SOURCES: string[] = Object.values(CONTRACT_SOURCE);
+
+export const BUYER_CONTACT_SOURCE_REQUIRED_MESSAGE =
+  'Please select how the buyer first contacted you';
+export const CERTIFICATION_REQUIRED_MESSAGE = 'Please confirm the certification';
+export const CONTRACT_ALREADY_SUBMITTED_MESSAGE =
+  'Contract details were already submitted for this offer.';
+
+export const NEEDS_REVIEW_MESSAGE =
+  'Needs review: the buyer has BetterOffMarket activity on this listing.';
+
 export const BUYER_NAME_MAX_LENGTH = 120;
 export const TITLE_COMPANY_MAX_LENGTH = 150;
 
@@ -30,6 +72,10 @@ export const PROPERTY_CONTRACT_SORT_FIELDS: Record<string, string> = {
   streetAddress: 'property.streetAddress',
   city: 'property.city',
   sellerName: 'seller.name',
+  // NEW FLOW: contract details from accepted offers
+  certifiedAt: 'certifiedAt',
+  buyerContactSource: 'buyerContactSource',
+  source: 'source',
 };
 
 export const PROPERTY_CONTRACT_DEFAULT_LIMIT = 10;

@@ -71,6 +71,9 @@ const offerSchema: Schema<IOffer> = new Schema(
     isBuyerAddedAuthorizedSigner: { type: Boolean, default: false },
     isSellerAddedAuthorizedSigner: { type: Boolean, default: false },
 
+    // NEW FLOW: true once the seller submits contract details for this offer (POST /property-contracts with offerId)
+    isContractDetailsSubmitted: { type: Boolean, default: false },
+
     status: {
       type: String,
       enum: OFFER_STATUS_OPTIONS,

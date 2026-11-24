@@ -105,7 +105,8 @@
                   <div class="header">{{title}}</div>
                   <div class="content">
                     <p>Hello {{userName}},</p>
-                    <p>A seller has marked their property as Under Contract.</p>
+                    <p>{{intro}}</p>
+                    {{needsReviewNotice}}
 
                     <p class="section-title">Property</p>
                     <table class="field-table" role="presentation">
@@ -156,6 +157,18 @@
                       <tr>
                         <td class="field-label">Submitted</td>
                         <td class="field-value">{{submittedAt}}</td>
+                      </tr>
+                      <tr>
+                        <td class="field-label" style="white-space: normal">How the buyer first made contact</td>
+                        <td class="field-value">{{buyerContactSource}}</td>
+                      </tr>
+                      <tr>
+                        <td class="field-label">Certified by seller</td>
+                        <td class="field-value">{{certifiedAt}}</td>
+                      </tr>
+                      <tr>
+                        <td class="field-label">From accepted offer</td>
+                        <td class="field-value">{{fromAcceptedOffer}}</td>
                       </tr>
                     </table>
 

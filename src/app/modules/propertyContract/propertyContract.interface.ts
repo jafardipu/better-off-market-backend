@@ -10,6 +10,20 @@ export interface IPropertyContract {
   titleCompany: string | null;
   // The property's status just before it was marked Under Contract.
   previousStatus: string;
+
+  // NEW FLOW: contract details from accepted offers. All optional so records
+  // created before these fields existed still load.
+  // The accepted offer this contract was submitted from.
+  offer?: Types.ObjectId | null;
+  // offer.buyer; null for a manual "Mark Under Contract" (typed buyer name only).
+  buyer?: Types.ObjectId | null;
+  // betteroffmarket | independent | unsure
+  buyerContactSource?: string | null;
+  // Server time when the seller's certification was received.
+  certifiedAt?: Date | null;
+  // offer_accepted | manual
+  source?: string;
+
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -23,4 +37,8 @@ export interface ICreatePropertyContractPayload {
   buyerName?: string | null;
   closingDate?: string | null;
   titleCompany?: string | null;
+  // NEW FLOW: contract details from accepted offers
+  offerId?: string | null;
+  buyerContactSource?: string | null;
+  certified?: unknown;
 }
