@@ -93,9 +93,12 @@ Further details:
 ### Realtime (`src/app/socket/`)
 - **Port:** Socket.IO listens on `SOCKET_PORT`, separate from the REST `PORT`.
 - **Handshake:** the JWT is read from `handshake.auth.token` or `headers.token`.
-- **Online users** are an in-memory map (`socket/utils/onlineUsers.ts`), so this assumes a single process. The redis adapter, bullmq and cron dependencies are installed but unused.
-- **Client events:** `message_page`, `my_chat_list`, `seen`, `send_message`, `typing`. The server emits `typing::<chatId>`.
-- **Emitting from REST code:** use `getIO()` from `socket/utils/io.ts`.
+- **Rooms, not socket ids:** on connect every socket joins the room named after its `userId`. Every push to a user (`new-message::<chatId>`, `chat_list` pushes, `typing::<chatId>`) uses `io.to(userId)`, so it reaches all their tabs and devices. Replies to a request (`my_chat_list`, `message_page`) go back on the requesting `socket` and its ack. Never route by a stored socket id (that was the "Messages spins forever" bug).
+- **Presence** (`socket/utils/onlineUsers.ts`) is an in-memory `Map<userId, Set<socketId>>`. A user is offline only when their set is empty, and `onlineUser` (array of user ids) is broadcast on every connect/disconnect. In-memory state assumes a single process; the redis adapter, bullmq and cron dependencies are installed but unused.
+- **Client events:** `message_page`, `my_chat_list`, `seen`, `send_message`, `typing`. The server emits `chat_list`, `message`, `new-message::<chatId>`, `typing::<chatId>`, `onlineUser`. Payload shapes are a contract with the website; don't change them.
+- **Chat list** (`socket/services/getChatList.ts`): chats sorted by `Chat.updatedAt` (bumped on every message by `send_message` and the RSVP message) and paged before the message `$lookup`s, which use the MongoDB 5.0+ `localField` + `pipeline` form. Pushes after `send_message`/`seen` use `CHAT_LIST_PUSH_LIMIT` (100, what the website requests) via `pushChatLists`.
+- **Emitting from REST code:** use `getIO()` from `socket/utils/io.ts`, `io.to(userId)` and `pushChatLists` (see the open-house RSVP message in `properties.service.ts`).
+- **Admin REST chat views** (`modules/chat`): `GET /chats` (dashboard "Conversations") lists only user-to-user chats. Chats with any participant whose role is not `user` are excluded with `participants: { $nin: adminIds }` before pagination. The admin's own chats are served only by the socket events.
 
 ### Frontend coupling
 `BASIC_INFO_CONFIG` in `properties.constants.ts` mirrors a frontend config and must be kept in sync with it.

@@ -3,8 +3,7 @@ import callbackFn from '../utils/callbackFn';
 import { Chat } from '../../modules/chat/chat.model';
 import { Message } from '../../modules/message/message.model';
 import { serializeMessage } from '../utils/serializeMessage';
-import getChatList from './chatList.handlers';
-import { getSocketIdByUserId } from '../utils/onlineUsers';
+import { pushChatLists } from './chatList.handlers';
 import { User } from '../../modules/user/user.models';
 import { sendActivityEmail } from '../../utils/activityEmail';
 import config from '../../config';
@@ -18,6 +17,31 @@ interface IPayload {
     chatId?: string;
     propertyInfo?: { _id: string; address: string; image?: string };
 }
+
+// Emails the receiver about a new message, with a link that opens the conversation.
+const sendNewMessageEmail = async (senderId: string, payload: IPayload) => {
+    const [sender, receiverUser] = await Promise.all([
+        User.findById(senderId).select('name'),
+        User.findById(payload.receiver).select('name email'),
+    ]);
+    const preview = payload.text?.trim()
+        ? payload.text.trim().slice(0, 180)
+        : payload.imageUrl?.length
+            ? 'Sent you an image'
+            : 'Sent you a message';
+
+    sendActivityEmail({
+        to: receiverUser?.email,
+        userName: receiverUser?.name,
+        subject: 'You received a new message',
+        title: 'New Message',
+        body: `${sender?.name || 'Someone'} sent you a message.`,
+        detailLabel: 'Message',
+        detailValue: preview,
+        actionUrl: `${config.client_Url}/message?user=${encodeURIComponent(senderId)}`,
+        actionLabel: 'Open Messages',
+    });
+};
 
 const sendMessage = async (
     io: Server,
@@ -77,38 +101,17 @@ const sendMessage = async (
 
         const serialized = serializeMessage(message);
 
-        const senderSocketId = getSocketIdByUserId(user.userId);
-        const receiverSocketId = getSocketIdByUserId(payload.receiver);
+        // namespaced event, raw message object — matches frontend exactly.
+        // Rooms reach every tab/device of both users; a socket in both rooms
+        // gets it once.
+        io.to([user.userId, payload.receiver]).emit(`new-message::${chatId}`, serialized);
 
-        // namespaced event, raw message object — matches frontend exactly
-        const eventName = `new-message::${chatId}`;
-        if (senderSocketId) io.to(senderSocketId).emit(eventName, serialized);
-        if (receiverSocketId) io.to(receiverSocketId).emit(eventName, serialized);
+        await pushChatLists(io, [user.userId, payload.receiver]);
 
-        await getChatList(io, { userId: user.userId }, {}, () => { });
-        await getChatList(io, { userId: payload.receiver }, {}, () => { });
-
+        // The email is not awaited, so the sender's ack doesn't wait for it.
         if (payload.receiver && payload.receiver !== user.userId) {
-            const [sender, receiverUser] = await Promise.all([
-                User.findById(user.userId).select('name'),
-                User.findById(payload.receiver).select('name email'),
-            ]);
-            const preview = payload.text?.trim()
-                ? payload.text.trim().slice(0, 180)
-                : payload.imageUrl?.length
-                    ? 'Sent you an image'
-                    : 'Sent you a message';
-
-            sendActivityEmail({
-                to: receiverUser?.email,
-                userName: receiverUser?.name,
-                subject: 'You received a new message',
-                title: 'New Message',
-                body: `${sender?.name || 'Someone'} sent you a message.`,
-                detailLabel: 'Message',
-                detailValue: preview,
-                actionUrl: `${config.client_Url}/messages`,
-                actionLabel: 'Open Messages',
+            void sendNewMessageEmail(user.userId, payload).catch((error) => {
+                console.error('New message email failed:', error);
             });
         }
 

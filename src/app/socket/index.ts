@@ -7,12 +7,7 @@ import getChatList from './handlers/chatList.handlers';
 import SeenMessageHandlers from './handlers/seenMessages.handlers';
 import sendMessage from './handlers/sendMessage.handlers';
 import getReceiverId from './services/getReceiverId';
-import {
-    setUserSocket,
-    removeUserSocket,
-    getUserIdBySocketId,
-    getSocketIdByUserId,
-} from './utils/onlineUsers';
+import { addUserSocket, removeUserSocket } from './utils/onlineUsers';
 import { setIO } from './utils/io';
 
 const handleTyping = async (
@@ -21,14 +16,13 @@ const handleTyping = async (
     chatId: string,
     isTyping: boolean,
 ) => {
+    if (!chatId) return;
     const receiverId = await getReceiverId(chatId, socket.data.userId);
     if (!receiverId) return;
 
-    const receiverSocketId = getSocketIdByUserId(receiverId);
-    if (!receiverSocketId) return;
-
-    // namespaced per-chat, matches frontend's `typing::${chatId}` listener
-    io.to(receiverSocketId).emit(`typing::${chatId}`, {
+    // namespaced per-chat, matches frontend's `typing::${chatId}` listener;
+    // the receiver's room reaches all their tabs/devices
+    io.to(receiverId).emit(`typing::${chatId}`, {
         userId: socket.data.userId,
         isTyping,
     });
@@ -49,20 +43,22 @@ const initializeSocket = async (server: HttpServer) => {
             return;
         }
 
-        // console.log(`✅ Connected: userId=${userId} socketId=${socket.id}`);
-        setUserSocket(userId, socket.id);
+        // Every push to a user goes to the room named after their userId, which
+        // holds all their sockets; socket.io removes the socket on disconnect.
+        socket.join(userId);
+        addUserSocket(userId, socket.id);
         broadcastOnlineUsers(io); // auto-broadcast — frontend never asks explicitly
 
         socket.on('message_page', (payload, callback) =>
-            MessagePageHandlers(io, payload, userId, callback),
+            MessagePageHandlers(socket, payload, userId, callback),
         );
 
         socket.on('my_chat_list', (payload, callback) =>
-            getChatList(io, socket.data, payload, callback),
+            getChatList(socket, payload, callback),
         );
 
-        socket.on('seen', ({ chatId }: { chatId: string }, callback) =>
-            SeenMessageHandlers(io, chatId, socket.data, callback),
+        socket.on('seen', (payload: { chatId?: string } | undefined, callback) =>
+            SeenMessageHandlers(io, payload?.chatId, socket.data, callback),
         );
 
         socket.on('send_message', (payload, callback) =>
@@ -70,19 +66,16 @@ const initializeSocket = async (server: HttpServer) => {
         );
 
         // single unified event, matches frontend's { chatId, isTyping } payload
-        socket.on('typing', ({ chatId, isTyping }: { chatId: string; isTyping: boolean }) =>
-            handleTyping(io, socket, chatId, isTyping).catch((err) =>
+        socket.on('typing', (payload: { chatId?: string; isTyping?: boolean } | undefined) =>
+            handleTyping(io, socket, payload?.chatId as string, Boolean(payload?.isTyping)).catch((err) =>
                 console.error('typing error:', err),
             ),
         );
 
         socket.on('disconnect', () => {
-            const uid = getUserIdBySocketId(socket.id);
-            if (uid) {
-                removeUserSocket(uid, socket.id);
-                broadcastOnlineUsers(io); // also update everyone when someone goes offline
-                // console.log(`❌ Disconnected: userId=${uid} socketId=${socket.id}`);
-            }
+            // Only this socket goes; the user stays online while another remains.
+            removeUserSocket(userId, socket.id);
+            broadcastOnlineUsers(io); // also update everyone when someone goes offline
         });
     });
 

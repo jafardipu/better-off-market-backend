@@ -2,11 +2,11 @@ import { Server } from 'socket.io';
 import callbackFn from '../utils/callbackFn';
 import { Chat } from '../../modules/chat/chat.model';
 import { Message } from '../../modules/message/message.model';
-import getChatList from './chatList.handlers';
+import { pushChatLists } from './chatList.handlers';
 
 const SeenMessageHandlers = async (
     io: Server,
-    chatId: string,
+    chatId: string | undefined,
     user: { userId: string },
     callback: (arg: unknown) => void,
 ) => {
@@ -20,23 +20,21 @@ const SeenMessageHandlers = async (
             return callbackFn(callback, { success: false, message: 'chat not found' });
         }
 
-        await Message.updateMany(
+        const result = await Message.updateMany(
             { chatId: chat._id, receiverId: user.userId, seen: false },
             { $set: { seen: true } },
         );
 
-        const [user1, user2] = chat.participants;
-
-        if (user1) {
-            await getChatList(io, { userId: user1.toString() }, { page: 1, limit: 10 }, () => { });
-        }
-        if (user2) {
-            await getChatList(io, { userId: user2.toString() }, { page: 1, limit: 10 }, () => { });
+        // Nothing changed, so both users' chat lists are already correct.
+        if (result.modifiedCount > 0) {
+            await pushChatLists(
+                io,
+                chat.participants.map((participant) => participant.toString()),
+            );
         }
 
         callbackFn(callback, { success: true, message: 'Messages marked as seen' });
     } catch (error: any) {
-        // console.log(error);
         callbackFn(callback, { success: false, message: error?.message || 'seen message failed' });
     }
 };

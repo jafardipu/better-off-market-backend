@@ -4,10 +4,28 @@ import { Message } from '../message/message.model';
 import QueryBuilder from '../../class/builder/QueryBuilder';
 import AppError from '../../error/AppError';
 import httpStatus from 'http-status';
+import { User } from '../user/user.models';
+import { USER_ROLE } from '../user/user.constants';
 
+// Every role other than a regular user is an admin role.
+const ADMIN_ROLES = Object.values(USER_ROLE).filter((role) => role !== USER_ROLE.user);
+
+// Admin "Conversations" page: only chats between two regular users. An admin's
+// own direct chats belong to the dashboard's Messages page (socket events).
 const getAllConversations = async (query: Record<string, unknown>) => {
+    // Ids of every account with an admin role. Read from the raw collection so
+    // soft-deleted admins are included too (User's find hook would hide them).
+    const adminIds = await User.collection.distinct('_id', {
+        role: { $in: ADMIN_ROLES },
+    });
+
+    // The filter is part of the query itself, so pagination and countTotal()
+    // (which reuses the query's filter) only ever see user-to-user chats.
     const chatQuery = new QueryBuilder(
-        Chat.find().populate('participants', 'name profile'),
+        Chat.find({ participants: { $nin: adminIds } }).populate(
+            'participants',
+            'name profile',
+        ),
         query,
     )
         .paginate()

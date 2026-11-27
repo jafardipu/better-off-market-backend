@@ -1,17 +1,19 @@
-import { Server } from 'socket.io';
+import { Socket } from 'socket.io';
 import callbackFn from '../utils/callbackFn';
 import { User } from '../../modules/user/user.models';
+import { Chat } from '../../modules/chat/chat.model';
 import { Message } from '../../modules/message/message.model';
 import { serializeMessage } from '../utils/serializeMessage';
-import { getSocketIdByUserId } from '../utils/onlineUsers';
 
+// message_page: one page of the conversation with payload.userId, newest page
+// first, oldest → newest within the page. Replies to the socket that asked.
 const MessagePageHandlers = async (
-    io: Server,
-    payload: { userId: string; limit?: number; page?: number },
+    socket: Socket,
+    payload: { userId: string; limit?: number; page?: number } | undefined,
     currentUserId: string,
     callback: (data: unknown) => void,
 ) => {
-    const { userId, page = 1, limit = 10 } = payload;
+    const { userId, page = 1, limit = 10 } = payload ?? ({} as { userId?: string; page?: number; limit?: number });
 
     if (!userId) {
         return callbackFn(callback, { success: false, message: 'userId is required' });
@@ -19,54 +21,56 @@ const MessagePageHandlers = async (
 
     const skip = (page - 1) * limit;
 
-    try {
-        const receiverDetails = await User.findById(userId).select('name email profile role');
-        if (!receiverDetails) {
-            return callbackFn(callback, { success: false, message: 'User not found!' });
+    // Query by chat so the { chatId: 1, createdAt: -1 } index serves both the
+    // filter and the sort. Same participant filter as send_message. All chats
+    // between the pair are included, in case a race ever created two.
+    const loadMessages = async () => {
+        const chats = await Chat.find({
+            participants: { $all: [currentUserId, userId], $size: 2 },
+        }).select('_id');
+        if (!chats.length) {
+            return { messages: [], total: 0 };
         }
 
-        const userSocket = getSocketIdByUserId(currentUserId);
-        if (!userSocket) {
-            return callbackFn(callback, { success: false, message: 'User socket ID not found' });
-        }
-
-        io.to(userSocket).emit('user_details', {
-            _id: receiverDetails._id,
-            name: receiverDetails.name,
-            email: receiverDetails.email,
-            profile: receiverDetails.profile,
-            role: receiverDetails.role,
-        });
-
-        const filter = {
-            $or: [
-                { senderId: currentUserId, receiverId: userId },
-                { senderId: userId, receiverId: currentUserId },
-            ],
-        };
-
-        const [messages, totalMessages] = await Promise.all([
+        const filter = { chatId: { $in: chats.map((chat) => chat._id) } };
+        const [messages, total] = await Promise.all([
             Message.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
             Message.countDocuments(filter),
         ]);
+        return { messages, total };
+    };
 
-        const serialized = messages.map(serializeMessage).reverse();
+    try {
+        const [receiver, { messages, total }] = await Promise.all([
+            User.findById(userId).select('_id'),
+            loadMessages(),
+        ]);
+
+        if (!receiver) {
+            return callbackFn(callback, { success: false, message: 'User not found!' });
+        }
 
         const response = {
-            data: serialized,
+            data: messages.map(serializeMessage).reverse(),
             meta: {
                 page,
                 limit,
-                total: totalMessages,
-                totalPage: Math.ceil(totalMessages / limit),
-                hasMore: skip + messages.length < totalMessages,
+                total,
+                totalPage: Math.ceil(total / limit),
+                hasMore: skip + messages.length < total,
             },
+            userId,
         };
 
-        io.to(userSocket).emit('message', response);
+        socket.emit('message', response);
+        callbackFn(callback, {
+            success: true,
+            message: 'Messages fetched successfully',
+            data: response,
+        });
     } catch (error: any) {
-        console.error('Error in message-page event:', error);
-        callbackFn(callback, { success: false, message: error.message });
+        console.error('Error in message_page event:', error);
+        callbackFn(callback, { success: false, message: error?.message });
     }
 };
 

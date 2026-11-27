@@ -24,5 +24,7 @@ const messageSchema = new Schema<IMessage>(
 
 messageSchema.index({ chatId: 1, createdAt: -1 });
 messageSchema.index({ senderId: 1, receiverId: 1 });
+// Unread counts in the chat list and the seen handler's updateMany.
+messageSchema.index({ chatId: 1, receiverId: 1, seen: 1 });
 
 export const Message = model<IMessage, MessageModel>('Message', messageSchema);

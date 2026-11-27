@@ -9,17 +9,23 @@ export const getMyChatList = async (
     const skip = (page - 1) * limit;
     const userObjectId = new Types.ObjectId(userId);
 
-    const chats = await Chat.aggregate([
+    // Sort and page first, then look up messages only for this page's chats.
+    // send_message bumps Chat.updatedAt on every message, so updatedAt is the
+    // last-activity time ({ participants: 1, updatedAt: -1 } index).
+    // The lookups use localField/foreignField + pipeline (MongoDB 5.0+), so the
+    // messages indexes { chatId: 1, createdAt: -1 } and
+    // { chatId: 1, receiverId: 1, seen: 1 } are used.
+    const chatsPromise = Chat.aggregate([
         { $match: { participants: userObjectId } },
+        { $sort: { updatedAt: -1 } },
+        { $skip: skip },
+        { $limit: limit },
         {
             $lookup: {
                 from: 'messages',
-                let: { chatId: '$_id' },
-                pipeline: [
-                    { $match: { $expr: { $eq: ['$chatId', '$$chatId'] } } },
-                    { $sort: { createdAt: -1 } },
-                    { $limit: 1 },
-                ],
+                localField: '_id',
+                foreignField: 'chatId',
+                pipeline: [{ $sort: { createdAt: -1 } }, { $limit: 1 }],
                 as: 'lastMessage',
             },
         },
@@ -27,19 +33,10 @@ export const getMyChatList = async (
         {
             $lookup: {
                 from: 'messages',
-                let: { chatId: '$_id' },
+                localField: '_id',
+                foreignField: 'chatId',
                 pipeline: [
-                    {
-                        $match: {
-                            $expr: {
-                                $and: [
-                                    { $eq: ['$chatId', '$$chatId'] },
-                                    { $ne: ['$senderId', userObjectId] },
-                                    { $eq: ['$seen', false] },
-                                ],
-                            },
-                        },
-                    },
+                    { $match: { receiverId: userObjectId, seen: false } },
                     { $count: 'count' },
                 ],
                 as: 'unread',
@@ -50,9 +47,6 @@ export const getMyChatList = async (
                 unreadMessageCount: { $ifNull: [{ $arrayElemAt: ['$unread.count', 0] }, 0] },
             },
         },
-        { $sort: { 'lastMessage.createdAt': -1, updatedAt: -1 } },
-        { $skip: skip },
-        { $limit: limit },
         {
             $lookup: {
                 from: 'users',
@@ -85,7 +79,10 @@ export const getMyChatList = async (
         },
     ]);
 
-    const totalCount = await Chat.countDocuments({ participants: userObjectId });
+    const [chats, totalCount] = await Promise.all([
+        chatsPromise,
+        Chat.countDocuments({ participants: userObjectId }),
+    ]);
 
     // reshape into the exact ChatListItem contract the frontend expects
     const data = chats.map((c) => ({

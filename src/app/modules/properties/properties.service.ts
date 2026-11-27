@@ -23,9 +23,8 @@ import config from '../../config';
 import { Chat } from '../chat/chat.model';
 import { Message } from '../message/message.model';
 import { serializeMessage } from '../../socket/utils/serializeMessage';
-import { getSocketIdByUserId } from '../../socket/utils/onlineUsers';
 import { getIO } from '../../socket/utils/io';
-import getChatList from '../../socket/handlers/chatList.handlers';
+import { pushChatLists } from '../../socket/handlers/chatList.handlers';
 // NEW FLOW: buyer activity tracking
 import { recordBuyerActivity } from '../buyerActivity/buyerActivity.utils';
 
@@ -616,15 +615,9 @@ const sendOpenHouseRsvpMessage = async (
 
   const io = getIO();
   if (io) {
-    const serialized = serializeMessage(message);
-    const eventName = `new-message::${chatId}`;
-    const senderSocketId = getSocketIdByUserId(buyerId);
-    const receiverSocketId = getSocketIdByUserId(sellerId);
-    if (senderSocketId) io.to(senderSocketId).emit(eventName, serialized);
-    if (receiverSocketId) io.to(receiverSocketId).emit(eventName, serialized);
-
-    await getChatList(io, { userId: buyerId }, {}, () => { });
-    await getChatList(io, { userId: sellerId }, {}, () => { });
+    // Each user's room reaches all their tabs/devices.
+    io.to([buyerId, sellerId]).emit(`new-message::${chatId}`, serializeMessage(message));
+    await pushChatLists(io, [buyerId, sellerId]);
   }
 };
 
