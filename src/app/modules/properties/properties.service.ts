@@ -376,6 +376,44 @@ const assertSellerStatusChangeAllowed = (
   }
 };
 
+// Status changes an admin may make from the dashboard listing page.
+const ADMIN_STATUS_TRANSITIONS: Record<string, string[]> = {
+  [STATUS.active]: [STATUS.under_contact],
+  [STATUS.under_contact]: [STATUS.active, STATUS.sold],
+};
+
+const ADMIN_STATUS_TRANSITION_TEXT =
+  `${STATUS.active} → ${STATUS.under_contact}, ` +
+  `${STATUS.under_contact} → ${STATUS.active}, ` +
+  `${STATUS.under_contact} → ${STATUS.sold}`;
+
+const assertAdminStatusChangeAllowed = (
+  currentStatus: string,
+  nextStatus?: string,
+) => {
+  if (typeof nextStatus !== 'string') return;
+
+  if (nextStatus === currentStatus) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `This listing is already ${currentStatus}`,
+    );
+  }
+
+  if (!(ADMIN_STATUS_TRANSITIONS[currentStatus] ?? []).includes(nextStatus)) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `Cannot change a listing from ${currentStatus} to ${nextStatus}. Allowed changes: ${ADMIN_STATUS_TRANSITION_TEXT}`,
+    );
+  }
+};
+
+const ADMIN_ROLES: string[] = [
+  USER_ROLE.admin,
+  USER_ROLE.super_admin,
+  USER_ROLE.sub_admin,
+];
+
 const updateProperty = async (
   id: string,
   payload: Partial<IProperty>,
@@ -388,9 +426,20 @@ const updateProperty = async (
     throw new AppError(httpStatus.NOT_FOUND, 'Property not found');
   }
 
-  if (actor.role === USER_ROLE.user) {
+  if (ADMIN_ROLES.includes(actor.role ?? '')) {
+    assertAdminStatusChangeAllowed(existing.status, payload.status);
+  } else {
+    if (existing.seller?.toString() !== actor.userId) {
+      throw new AppError(
+        httpStatus.FORBIDDEN,
+        'You can only update your own property',
+      );
+    }
     assertSellerStatusChangeAllowed(existing.status, payload.status);
   }
+
+  const statusChanging =
+    typeof payload.status === 'string' && payload.status !== existing.status;
 
   const previousPrice = existing.listingPrice;
   const nextPrice =
@@ -410,10 +459,20 @@ const updateProperty = async (
     payload.priceDroppedAt = new Date();
   }
 
-  const result = await Property.findByIdAndUpdate(id, payload, {
-    new: true,
-    runValidators: true,
-  });
+  // A status change only applies if nobody else changed the status since it
+  // was checked above (e.g. two admins, or the seller's contract form).
+  const result = await Property.findOneAndUpdate(
+    statusChanging ? { _id: id, status: existing.status } : { _id: id },
+    payload,
+    { new: true, runValidators: true },
+  );
+
+  if (!result && statusChanging) {
+    throw new AppError(
+      httpStatus.CONFLICT,
+      "This listing's status was just changed by someone else. Reload and try again.",
+    );
+  }
 
   if (result && removedFileUrls.length) {
     await deleteRemovedPropertyFiles(removedFileUrls);

@@ -53,9 +53,11 @@ router.get(
 
 router.get('/:id', propertyController.getPropertyById);
 
+// Sellers edit their own listing; admin roles may change any listing's status
+// with a plain JSON body ({ status }), multipart is optional.
 router.patch(
     '/:id',
-    auth(USER_ROLE.user),
+    auth(USER_ROLE.user, USER_ROLE.admin, USER_ROLE.super_admin, USER_ROLE.sub_admin),
     propertyUploadFields,
     parseData(),
     processPropertyFiles,
